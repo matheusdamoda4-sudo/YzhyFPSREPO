@@ -70,12 +70,26 @@ function Run-Hidden {
     }
 }
 
+function Invoke-UIFlush {
+    # DoEvents para WPF: processa eventos de render/input pendentes sem sair da thread UI
+    try {
+        $frame = New-Object System.Windows.Threading.DispatcherFrame
+        $cb = [System.Windows.Threading.DispatcherOperationCallback]{ param($f); $f.Continue = $false; $null }
+        [System.Windows.Threading.Dispatcher]::CurrentDispatcher.BeginInvoke(
+            [System.Windows.Threading.DispatcherPriority]::Background, $cb, $frame) | Out-Null
+        [System.Windows.Threading.Dispatcher]::PushFrame($frame)
+    } catch {}
+}
+
 function Delete-FilesSafe {
     param([string]$Path)
     $count = 0
     if (Test-Path $Path) {
-        Get-ChildItem -Path $Path -Recurse -Force -ErrorAction SilentlyContinue | ForEach-Object {
+        # Iteracao nao-recursiva no topo: Remove-Item -Recurse cuida das subpastas.
+        # A cada 25 itens removidos chamamos Invoke-UIFlush para manter a UI responsiva.
+        Get-ChildItem -Path $Path -Force -ErrorAction SilentlyContinue | ForEach-Object {
             try { Remove-Item $_.FullName -Force -Recurse -ErrorAction Stop; $count++ } catch {}
+            if (($count % 25) -eq 0) { Invoke-UIFlush }
         }
     }
     return $count
@@ -2782,7 +2796,7 @@ function Set-PopupStep {
     param([string]$Step)
     if ($PopupCurrentCmd) { $PopupCurrentCmd.Text = $Step }
     if ($StatusText)      { $StatusText.Text = $Step }
-    $Window.Dispatcher.Invoke([System.Windows.Threading.DispatcherPriority]::Background, [Action]{})
+    Invoke-UIFlush
 }
 
 function Set-PopupProgress {
@@ -3119,7 +3133,7 @@ $ApplyAllBtn.Add_Click({
     $PopupProgressLabel.Text = "0 / $total"
     $ProgressOverlay.Visibility = "Visible"
     Set-PopupProgress 0
-    $Window.Dispatcher.Invoke([System.Windows.Threading.DispatcherPriority]::Background, [Action]{})
+    Invoke-UIFlush
 
     foreach ($item in $selected) {
         $current++
