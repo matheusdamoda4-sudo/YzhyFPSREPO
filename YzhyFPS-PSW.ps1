@@ -2437,7 +2437,7 @@ Add-Type -AssemblyName WindowsBase
                                 <TextBlock Name="CategoryTitle" Text="Sistema" FontSize="22" FontWeight="Bold" Foreground="{StaticResource TextPrimary}"/>
                                 <TextBlock Name="CategoryDesc" Text="Otimizacoes do sistema operacional" FontSize="12" Foreground="{StaticResource TextMuted}" Margin="0,4,0,0"/>
                             </StackPanel>
-                            <Button Grid.Column="1" Style="{StaticResource ApplyAllBtn}" Content="⚡ Aplicar Todos" Name="ApplyAllBtn" VerticalAlignment="Center"/>
+                            <Button Grid.Column="1" Style="{StaticResource ApplyAllBtn}" Content="⚡ Run Tweaks" Name="ApplyAllBtn" VerticalAlignment="Center"/>
                         </Grid>
                     </Border>
 
@@ -2541,6 +2541,79 @@ Add-Type -AssemblyName WindowsBase
                                Cursor="Hand" TextDecorations="Underline"/>
                 </StackPanel>
             </Grid>
+
+            <!-- Login Overlay — shown after splash, hidden after correct password -->
+            <Grid Name="LoginOverlay" Grid.RowSpan="2" Visibility="Collapsed" Opacity="0">
+                <Border Background="#0D1117"/>
+                <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Background="#161B22" CornerRadius="18"
+                        BorderBrush="#30363D" BorderThickness="1"
+                        Padding="52,44,52,44" MinWidth="380">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="60" ShadowDepth="0" Opacity="0.9" Color="Black"/>
+                    </Border.Effect>
+                    <StackPanel>
+                        <!-- Lock icon -->
+                        <TextBlock Text="&#xE72E;" FontFamily="Segoe MDL2 Assets" FontSize="36"
+                                   Foreground="#FFFFFF" HorizontalAlignment="Center" Margin="0,0,0,14"/>
+                        <!-- Title -->
+                        <TextBlock Text="YZHY FPS PSW" FontSize="22" FontWeight="Bold"
+                                   Foreground="#E6EDF3" HorizontalAlignment="Center" Margin="0,0,0,4"/>
+                        <TextBlock Text="Digite a senha de acesso" FontSize="12"
+                                   Foreground="#6E7681" HorizontalAlignment="Center" Margin="0,0,0,28"/>
+                        <!-- Password box -->
+                        <Border Name="LoginFieldBorder" Background="#1C2128" CornerRadius="10"
+                                BorderBrush="#30363D" BorderThickness="1.5" Margin="0,0,0,10"
+                                ClipToBounds="True">
+                            <Grid Margin="14,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="&#xE72E;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                           Foreground="#6E7681" VerticalAlignment="Center" Margin="0,0,10,0"
+                                           Grid.Column="0"/>
+                                <PasswordBox Name="LoginPasswordBox" Grid.Column="1"
+                                             FontSize="15" Height="46"
+                                             Background="Transparent" BorderThickness="0"
+                                             Foreground="#E6EDF3" CaretBrush="#FFFFFF"
+                                             PasswordChar="&#x2022;"
+                                             VerticalContentAlignment="Center"
+                                             Padding="2,0,0,0"
+                                             FocusVisualStyle="{x:Null}"/>
+                            </Grid>
+                        </Border>
+                        <!-- Error message -->
+                        <TextBlock Name="LoginErrorText" Text="" FontSize="12"
+                                   Foreground="#F85149" HorizontalAlignment="Center"
+                                   Margin="0,0,0,14" Visibility="Collapsed"/>
+                        <!-- Login button -->
+                        <Button Name="LoginBtn" Height="46" Margin="0,4,0,0"
+                                Cursor="Hand" BorderThickness="0">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="bd" Background="#FFFFFF" CornerRadius="10">
+                                        <TextBlock Text="Entrar" FontSize="14" FontWeight="Bold"
+                                                   Foreground="#0D1117" HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="bd" Property="Background" Value="#D8D8D8"/>
+                                        </Trigger>
+                                        <Trigger Property="IsPressed" Value="True">
+                                            <Setter TargetName="bd" Property="Background" Value="#B8B8B8"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                        <!-- Footer hint -->
+                        <TextBlock Text="Powered by VarejoCode" FontSize="10"
+                                   Foreground="#3E454F" HorizontalAlignment="Center" Margin="0,22,0,0"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
         </Grid>
     </Border>
 </Window>
@@ -2578,13 +2651,18 @@ $SplashSpinner       = $Window.FindName("SplashSpinner")
 $SplashDiscordVarejo = $Window.FindName("SplashDiscordVarejo")
 $SplashDiscordYzhy   = $Window.FindName("SplashDiscordYzhy")
 $SplashWebBtn        = $Window.FindName("SplashWebBtn")
+$LoginOverlay        = $Window.FindName("LoginOverlay")
+$LoginPasswordBox    = $Window.FindName("LoginPasswordBox")
+$LoginBtn            = $Window.FindName("LoginBtn")
+$LoginErrorText      = $Window.FindName("LoginErrorText")
+$LoginFieldBorder    = $Window.FindName("LoginFieldBorder")
 
 # Admin label
 if ($script:IsAdmin) {
-    $AdminLabel.Text = "✓ Executando como Administrador"
+    $AdminLabel.Text = "$([char]0x2713) Executando como Administrador"
     $AdminLabel.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#3FB950")
 } else {
-    $AdminLabel.Text = "⚠ Sem privilegios de administrador"
+    $AdminLabel.Text = "$([char]0x26A0) Sem privilegios de administrador"
     $AdminLabel.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#D29922")
 }
 
@@ -2876,91 +2954,19 @@ function Build-OptionsUI {
         $toggle.Add_Checked({
             $k = $this.Tag
             $capturedStates[$k] = $true
-            $capturedStatus.Text = "Aplicando..."
-            $capturedStatus.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#D29922")
-
-            # Show popup
-            $PopupTitleText.Text     = $capturedTitle
-            $PopupStatusText.Text    = "Processando..."
-            $PopupCurrentCmd.Text    = "Iniciando..."
-            $PopupProgressLabel.Text = ""
-            $ProgressOverlay.Visibility = "Visible"
-            Set-PopupProgress 0
-            $Window.Dispatcher.Invoke([System.Windows.Threading.DispatcherPriority]::Background, [Action]{})
-
-            try {
-                $func = $capturedMap[$k]
-                if ($func) {
-                    $result = & $func $true
-                    $capturedStatus.Text = "✓ $result"
-                    $capturedStatus.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#3FB950")
-                    $StatusText.Text = "Concluido: $result"
-                    $PopupStatusText.Text = "✓ $result"
-                    $PopupCurrentCmd.Text = "Concluido"
-                    Set-PopupProgress 1
-                } else {
-                    $capturedStatus.Text = "⚠ Funcao nao encontrada"
-                    $capturedStatus.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#D29922")
-                    $PopupStatusText.Text = "⚠ Funcao nao encontrada"
-                    $PopupCurrentCmd.Text = ""
-                }
-            } catch {
-                $capturedStatus.Text = "✗ Erro: $_"
-                $capturedStatus.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#F85149")
-                $StatusText.Text = "Erro: $_"
-                $PopupStatusText.Text = "✗ Erro ao aplicar"
-                $PopupCurrentCmd.Text = "Falhou: $_"
-            }
+            $capturedStatus.Text       = "Selecionado"
+            $capturedStatus.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#58A6FF")
             Update-Counter
             Update-NavBadges
-            # Auto-hide popup after 1.5s
-            $ht = New-Object System.Windows.Threading.DispatcherTimer
-            $ht.Interval = [TimeSpan]::FromMilliseconds(1500)
-            $capturedHt = $ht ; $capturedOv = $ProgressOverlay
-            $ht.Add_Tick({ $capturedOv.Visibility = "Collapsed"; $capturedHt.Stop() }.GetNewClosure())
-            $ht.Start()
         }.GetNewClosure())
 
         $toggle.Add_Unchecked({
             $k = $this.Tag
             $capturedStates[$k] = $false
-            $capturedStatus.Text = "Revertendo..."
-            $capturedStatus.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#D29922")
-
-            # Show popup
-            $PopupTitleText.Text     = $capturedTitle
-            $PopupStatusText.Text    = "Revertendo..."
-            $PopupCurrentCmd.Text    = "Iniciando reversao..."
-            $PopupProgressLabel.Text = ""
-            $ProgressOverlay.Visibility = "Visible"
-            Set-PopupProgress 0
-            $Window.Dispatcher.Invoke([System.Windows.Threading.DispatcherPriority]::Background, [Action]{})
-
-            try {
-                $func = $capturedMap[$k]
-                if ($func) {
-                    $result = & $func $false
-                    $capturedStatus.Text = "○ $result"
-                    $capturedStatus.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#8B949E")
-                    $StatusText.Text = "Revertido: $result"
-                    $PopupStatusText.Text = "○ $result"
-                    $PopupCurrentCmd.Text = "Concluido"
-                    Set-PopupProgress 1
-                }
-            } catch {
-                $capturedStatus.Text = "✗ Erro ao reverter: $_"
-                $capturedStatus.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#F85149")
-                $PopupStatusText.Text = "✗ Erro ao reverter"
-                $PopupCurrentCmd.Text = "Falhou: $_"
-            }
+            $capturedStatus.Text       = "Inativo"
+            $capturedStatus.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#8B949E")
             Update-Counter
             Update-NavBadges
-            # Auto-hide popup after 1.5s
-            $ht = New-Object System.Windows.Threading.DispatcherTimer
-            $ht.Interval = [TimeSpan]::FromMilliseconds(1500)
-            $capturedHt = $ht ; $capturedOv = $ProgressOverlay
-            $ht.Add_Tick({ $capturedOv.Visibility = "Collapsed"; $capturedHt.Stop() }.GetNewClosure())
-            $ht.Start()
         }.GetNewClosure())
 
         $grid.Children.Add($toggle)
@@ -3093,12 +3099,21 @@ $ApplyAllBtn.Add_Click({
     if (-not $items) { return }
     $localStates = $script:OptionStates
     $localMap    = $script:OptimizationMap
-    $total       = $items.Count
-    $current     = 0
-    $success     = 0
+
+    # Only run items that are currently checked
+    $selected = $items | Where-Object { $localStates[$_.Key] -eq $true }
+    $total    = $selected.Count
+
+    if ($total -eq 0) {
+        $StatusText.Text = "Nenhuma opcao selecionada. Marque os toggles primeiro."
+        return
+    }
+
+    $current = 0
+    $success = 0
 
     # Show progress popup
-    $PopupTitleText.Text     = "Aplicando: $catName"
+    $PopupTitleText.Text     = "Run Tweaks: $catName"
     $PopupStatusText.Text    = "Iniciando..."
     $PopupCurrentCmd.Text    = "Preparando..."
     $PopupProgressLabel.Text = "0 / $total"
@@ -3106,15 +3121,14 @@ $ApplyAllBtn.Add_Click({
     Set-PopupProgress 0
     $Window.Dispatcher.Invoke([System.Windows.Threading.DispatcherPriority]::Background, [Action]{})
 
-    foreach ($item in $items) {
+    foreach ($item in $selected) {
         $current++
         $key = $item.Key
-        $localStates[$key] = $true
         $PopupStatusText.Text    = $item.Title
         $PopupCurrentCmd.Text    = "Rodando: $($item.Title)"
         $PopupProgressLabel.Text = "$current / $total"
         $StatusText.Text         = "[$current/$total] $($item.Title)..."
-        Set-PopupProgress ($current / ($total + 1))
+        Set-PopupProgress (($current - 1) / $total)
         try {
             $func = $localMap[$key]
             if ($func) { $result = & $func $true; $success++ }
@@ -3124,10 +3138,10 @@ $ApplyAllBtn.Add_Click({
     }
 
     $PopupTitleText.Text     = "Concluido!"
-    $PopupStatusText.Text    = "$success de $total otimizacoes aplicadas"
+    $PopupStatusText.Text    = "$success de $total tweaks aplicados"
     $PopupCurrentCmd.Text    = "Todas as operacoes finalizadas"
-    $PopupProgressLabel.Text = "$success / $total"
-    $StatusText.Text         = "Concluido! $success/$total aplicadas em $catName"
+    $PopupProgressLabel.Text = "$total / $total"
+    $StatusText.Text         = "Concluido! $success/$total tweaks aplicados em $catName"
     Set-PopupProgress 1
     Update-Counter
     Update-NavBadges
@@ -3140,12 +3154,136 @@ $ApplyAllBtn.Add_Click({
     $ht.Start()
 })
 
-# ── Splash screen: clickable links ───────────────────────────────────────
+# ── Helpers de animacao ────────────────────────────────────────────────
+function Invoke-FadeIn {
+    param($Element, [int]$DurationMs = 400, [scriptblock]$OnComplete = $null)
+    $Element.Opacity    = 0
+    $Element.Visibility = "Visible"
+    $anim = New-Object System.Windows.Media.Animation.DoubleAnimation
+    $anim.From     = 0.0
+    $anim.To       = 1.0
+    $anim.Duration = [System.Windows.Duration]([TimeSpan]::FromMilliseconds($DurationMs))
+    $easing = New-Object System.Windows.Media.Animation.CubicEase
+    $easing.EasingMode = [System.Windows.Media.Animation.EasingMode]::EaseOut
+    $anim.EasingFunction = $easing
+    if ($OnComplete) {
+        $capturedCb = $OnComplete
+        $anim.Add_Completed({ & $capturedCb }.GetNewClosure())
+    }
+    $Element.BeginAnimation([System.Windows.UIElement]::OpacityProperty, $anim)
+}
+
+function Invoke-FadeOut {
+    param($Element, [int]$DurationMs = 350, [scriptblock]$OnComplete = $null)
+    $anim = New-Object System.Windows.Media.Animation.DoubleAnimation
+    $anim.From     = 1.0
+    $anim.To       = 0.0
+    $anim.Duration = [System.Windows.Duration]([TimeSpan]::FromMilliseconds($DurationMs))
+    $easing = New-Object System.Windows.Media.Animation.CubicEase
+    $easing.EasingMode = [System.Windows.Media.Animation.EasingMode]::EaseIn
+    $anim.EasingFunction = $easing
+    $capturedEl = $Element
+    if ($OnComplete) { $capturedCb2 = $OnComplete }
+    $anim.Add_Completed({
+        $capturedEl.Visibility = "Collapsed"
+        $capturedEl.Opacity    = 1.0
+        if ($capturedCb2) { & $capturedCb2 }
+    }.GetNewClosure())
+    $Element.BeginAnimation([System.Windows.UIElement]::OpacityProperty, $anim)
+}
+
+# ── Funcao: mostrar login com fade-in ──────────────────────────────────
+function Show-LoginScreen {
+    $capturedLogin  = $LoginOverlay
+    $capturedPwBox  = $LoginPasswordBox
+    $capturedLoginFb = $LoginFieldBorder
+    Invoke-FadeIn $capturedLogin 450 {
+        $capturedPwBox.Focus() | Out-Null
+    }.GetNewClosure()
+}
+
+# ── Funcao: fazer login (valida senha e vai para o app) ────────────────
+function Try-Login {
+    $capturedLogin    = $LoginOverlay
+    $capturedErr      = $LoginErrorText
+    $capturedFb       = $LoginFieldBorder
+    $capturedPwBox    = $LoginPasswordBox
+
+    $entered = $capturedPwBox.Password
+    if ($entered -eq "Yzhy5857") {
+        # Senha correta — borda verde rapida
+        $capturedFb.BorderBrush = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#3FB950")
+        $capturedErr.Visibility = "Collapsed"
+
+        # Pequeno delay para o usuario ver o verde, depois fade-out
+        $delayTimer = New-Object System.Windows.Threading.DispatcherTimer
+        $delayTimer.Interval = [TimeSpan]::FromMilliseconds(400)
+        $capturedDt = $delayTimer
+        $capturedDt.Add_Tick({
+            $capturedDt.Stop()
+            Invoke-FadeOut $capturedLogin 500
+        }.GetNewClosure())
+        $delayTimer.Start()
+    } else {
+        # Senha errada — borda vermelha + shake
+        $capturedFb.BorderBrush = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#F85149")
+        $capturedErr.Text = "Senha incorreta. Tente novamente."
+        $capturedErr.Visibility = "Visible"
+        $capturedPwBox.Clear()
+        $capturedPwBox.Focus() | Out-Null
+
+        # Animacao de shake horizontal no card
+        $shakeTarget = $capturedLogin.Children | Where-Object { $_ -is [System.Windows.Controls.Border] } | Select-Object -Last 1
+        if ($shakeTarget) {
+            $tt = New-Object System.Windows.Media.TranslateTransform
+            $shakeTarget.RenderTransform = $tt
+            $shakeAnim = New-Object System.Windows.Media.Animation.DoubleAnimationUsingKeyFrames
+            @(0,0; 0.08,-12; 0.16,12; 0.24,-10; 0.32,10; 0.40,-6; 0.48,6; 0.56,0) | ForEach-Object {}
+            $frames = @(
+                @{T=0;   V=0}
+                @{T=0.07;V=-14}
+                @{T=0.14;V=14}
+                @{T=0.21;V=-10}
+                @{T=0.28;V=10}
+                @{T=0.35;V=-6}
+                @{T=0.42;V=0}
+            )
+            foreach ($f in $frames) {
+                $kf = New-Object System.Windows.Media.Animation.SplineDoubleKeyFrame
+                $kf.KeyTime = [System.Windows.Media.Animation.KeyTime]::FromTimeSpan([TimeSpan]::FromSeconds($f.T))
+                $kf.Value = $f.V
+                $shakeAnim.KeyFrames.Add($kf) | Out-Null
+            }
+            $shakeAnim.Duration = [System.Windows.Duration]([TimeSpan]::FromMilliseconds(450))
+            $tt.BeginAnimation([System.Windows.Media.TranslateTransform]::XProperty, $shakeAnim)
+        }
+
+        # Timeout para limpar borda vermelha
+        $resetTimer = New-Object System.Windows.Threading.DispatcherTimer
+        $resetTimer.Interval = [TimeSpan]::FromMilliseconds(1400)
+        $capturedRt = $resetTimer; $capturedFbR = $capturedFb
+        $resetTimer.Add_Tick({
+            $capturedRt.Stop()
+            $capturedFbR.BorderBrush = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#30363D")
+        }.GetNewClosure())
+        $resetTimer.Start()
+    }
+}
+
+# ── Eventos do login ───────────────────────────────────────────────────
+$LoginBtn.Add_Click({ Try-Login })
+$LoginPasswordBox.Add_KeyDown({
+    if ($_.Key -eq [System.Windows.Input.Key]::Return -or $_.Key -eq [System.Windows.Input.Key]::Enter) {
+        Try-Login
+    }
+})
+
+# ── Splash screen: clickable links ────────────────────────────────────
 $SplashWebBtn.Add_MouseLeftButtonUp({ Start-Process "https://varejocode.com.br" })
 $SplashDiscordVarejo.Add_MouseLeftButtonUp({ Start-Process "https://discord.gg/gyHSQTNcp6" })
 $SplashDiscordYzhy.Add_MouseLeftButtonUp({ Start-Process "https://discord.gg/3eP4txtKNb" })
 
-# ── Splash screen: fade-out after 3.5 s then collapse ───────────────────
+# ── Splash screen: fade-out after 3.5 s then show LOGIN ─────────────────
 $splashTimer = New-Object System.Windows.Threading.DispatcherTimer
 $splashTimer.Interval = [TimeSpan]::FromMilliseconds(3500)
 $capturedLo = $LoadingOverlay
@@ -3153,11 +3291,11 @@ $capturedSt = $spinTimer
 $splashTimer.Add_Tick({
     $this.Stop()
     if ($capturedSt) { $capturedSt.Stop() }   # stop spinner
-    # 700 ms smooth fade-out
+    # 600 ms smooth fade-out of splash
     $fadeAnim = New-Object System.Windows.Media.Animation.DoubleAnimation
     $fadeAnim.From     = 1.0
     $fadeAnim.To       = 0.0
-    $fadeAnim.Duration = [System.Windows.Duration]([TimeSpan]::FromMilliseconds(700))
+    $fadeAnim.Duration = [System.Windows.Duration]([TimeSpan]::FromMilliseconds(600))
     $easing = New-Object System.Windows.Media.Animation.CubicEase
     $easing.EasingMode = [System.Windows.Media.Animation.EasingMode]::EaseIn
     $fadeAnim.EasingFunction = $easing
@@ -3165,6 +3303,8 @@ $splashTimer.Add_Tick({
     $fadeAnim.Add_Completed({
         $capturedFadeLo.Visibility = "Collapsed"
         $capturedFadeLo.Opacity    = 1.0
+        # Show login screen with fade-in
+        Show-LoginScreen
     }.GetNewClosure())
     $capturedLo.BeginAnimation([System.Windows.UIElement]::OpacityProperty, $fadeAnim)
 }.GetNewClosure())
