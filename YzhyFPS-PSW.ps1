@@ -59,10 +59,15 @@ function Run-Hidden {
         $psi.Arguments = $Args
         $psi.UseShellExecute = $false
         $psi.CreateNoWindow = $true
-        $psi.RedirectStandardOutput = $true
-        $psi.RedirectStandardError = $true
+        # NAO redirecionar stdout/stderr: redirecionar sem ler causa deadlock no
+        # .NET Framework (buffer cheio bloqueia o processo filho e WaitForExit trava infinitamente)
         $p = [System.Diagnostics.Process]::Start($psi)
-        $p.WaitForExit(30000) | Out-Null
+        if ($p) {
+            $exited = $p.WaitForExit(20000)
+            if (-not $exited) {
+                try { $p.Kill() } catch {}
+            }
+        }
         return $true
     } catch {
         Write-Log "Erro ao executar: $Exe $Args - $_"
@@ -3143,12 +3148,15 @@ $ApplyAllBtn.Add_Click({
         $PopupProgressLabel.Text = "$current / $total"
         $StatusText.Text         = "[$current/$total] $($item.Title)..."
         Set-PopupProgress (($current - 1) / $total)
+        Invoke-UIFlush
         try {
             $func = $localMap[$key]
             if ($func) { $result = & $func $true; $success++ }
         } catch {
             Write-Log "Erro em $key : $_"
         }
+        Set-PopupProgress ($current / $total)
+        Invoke-UIFlush
     }
 
     $PopupTitleText.Text     = "Concluido!"
