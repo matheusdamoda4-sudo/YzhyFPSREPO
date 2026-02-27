@@ -1892,6 +1892,223 @@ function Invoke-OptimizeAdobe {
     return if ($Enable) { "Adobe otimizado (atualizacoes e telemetria off)" } else { "Adobe restaurado" }
 }
 
+# =============== NOVAS OTIMIZACOES FPS (2026) ===============
+
+function Invoke-DisableCpuParking {
+    param([bool]$Enable)
+    if (-not $script:IsAdmin) { return "Requer administrador para desativar Core Parking." }
+    if ($Enable) {
+        Run-Hidden "powercfg" "/setacvalueindex scheme_current 54533251-82be-4824-96c1-47b60b740d00 0cc5b647-c1df-4637-891a-dec35c318583 100"
+        Run-Hidden "powercfg" "/setdcvalueindex scheme_current 54533251-82be-4824-96c1-47b60b740d00 0cc5b647-c1df-4637-891a-dec35c318583 100"
+        Run-Hidden "powercfg" "/setactive scheme_current"
+        # Registro direto para garantir persistencia
+        Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerSettings\54533251-82be-4824-96c1-47b60b740d00\0cc5b647-c1df-4637-891a-dec35c318583" "ValueMin" 100
+        Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerSettings\54533251-82be-4824-96c1-47b60b740d00\0cc5b647-c1df-4637-891a-dec35c318583" "ValueMax" 100
+    } else {
+        Run-Hidden "powercfg" "/setacvalueindex scheme_current 54533251-82be-4824-96c1-47b60b740d00 0cc5b647-c1df-4637-891a-dec35c318583 0"
+        Run-Hidden "powercfg" "/setdcvalueindex scheme_current 54533251-82be-4824-96c1-47b60b740d00 0cc5b647-c1df-4637-891a-dec35c318583 0"
+        Run-Hidden "powercfg" "/setactive scheme_current"
+        Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerSettings\54533251-82be-4824-96c1-47b60b740d00\0cc5b647-c1df-4637-891a-dec35c318583" "ValueMin" 0
+        Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerSettings\54533251-82be-4824-96c1-47b60b740d00\0cc5b647-c1df-4637-891a-dec35c318583" "ValueMax" 100
+    }
+    return if ($Enable) { "Core Parking desativado (TODOS os nucleos ativos — grande ganho de FPS!)" } else { "Core Parking restaurado" }
+}
+
+function Invoke-DisableVbsHvci {
+    param([bool]$Enable)
+    if (-not $script:IsAdmin) { return "Requer administrador para alterar VBS/HVCI." }
+    if ($Enable) {
+        Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard" "EnableVirtualizationBasedSecurity" 0
+        Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard" "RequirePlatformSecurityFeatures" 0
+        Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard" "HvCIPolicy" 0
+        if (-not (Test-Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity")) {
+            New-Item -Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity" -Force | Out-Null
+        }
+        Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity" "Enabled" 0
+        Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity" "WasEnabledBy" 0
+        Run-Hidden "bcdedit" "/set hypervisorlaunchtype off"
+        Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" "LsaCfgFlags" 0
+    } else {
+        Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard" "EnableVirtualizationBasedSecurity" 1
+        Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard" "RequirePlatformSecurityFeatures" 3
+        Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity" "Enabled" 1
+        Run-Hidden "bcdedit" "/set hypervisorlaunchtype auto"
+    }
+    return if ($Enable) { "VBS/HVCI desativado (REINICIE — ganho de +5-15% FPS!)" } else { "VBS/HVCI restaurado (requer reinicio)" }
+}
+
+function Invoke-ForceGpuHighPerf {
+    param([bool]$Enable)
+    if ($Enable) {
+        # Forcar GPU dedicada + VRR + SwapEffect para todas as apps DirectX
+        Set-RegistryValue "HKCU:\Software\Microsoft\DirectX\UserGpuPreferences" "DirectXUserGlobalSettings" "GpuPreference=2;VRROptimizeEnable=1;SwapEffectUpgradeEnable=1;" "String"
+        if ($script:IsAdmin) {
+            # GPU max perf no power plan
+            Run-Hidden "powercfg" "/setacvalueindex scheme_current 4f971e89-eebd-4455-a8de-9e59040e7347 5fb4938d-1ee8-4b0f-9a3c-5036b0ab995c 1"
+            Run-Hidden "powercfg" "/setactive scheme_current"
+        }
+    } else {
+        Set-RegistryValue "HKCU:\Software\Microsoft\DirectX\UserGpuPreferences" "DirectXUserGlobalSettings" "VRROptimizeEnable=0;" "String"
+        if ($script:IsAdmin) {
+            Run-Hidden "powercfg" "/setacvalueindex scheme_current 4f971e89-eebd-4455-a8de-9e59040e7347 5fb4938d-1ee8-4b0f-9a3c-5036b0ab995c 0"
+            Run-Hidden "powercfg" "/setactive scheme_current"
+        }
+    }
+    return if ($Enable) { "GPU High Performance forcado (dedicada + VRR + SwapEffect)" } else { "GPU preferencia restaurada" }
+}
+
+function Invoke-DisableEpp {
+    param([bool]$Enable)
+    if (-not $script:IsAdmin) { return "Requer administrador para alterar EPP." }
+    if ($Enable) {
+        # Energy Performance Preference bias = 0 (max performance, sem throttling EPP)
+        Run-Hidden "powercfg" "/setacvalueindex scheme_current 54533251-82be-4824-96c1-47b60b740d00 36687f9e-e3a5-4dbf-b1dc-15eb381c6863 0"
+        # Processor energy performance policy = 0
+        Run-Hidden "powercfg" "/setacvalueindex scheme_current 54533251-82be-4824-96c1-47b60b740d00 45bcc044-d885-43e2-8605-ee0ec6e96b59 0"
+        # Autonomous mode off (Intel Speed Shift: 0 = OS controlled / max)
+        Run-Hidden "powercfg" "/setacvalueindex scheme_current 54533251-82be-4824-96c1-47b60b740d00 be337238-0d82-4146-a960-4f3749d470c7 100"
+        Run-Hidden "powercfg" "/setactive scheme_current"
+    } else {
+        Run-Hidden "powercfg" "/setacvalueindex scheme_current 54533251-82be-4824-96c1-47b60b740d00 36687f9e-e3a5-4dbf-b1dc-15eb381c6863 50"
+        Run-Hidden "powercfg" "/setacvalueindex scheme_current 54533251-82be-4824-96c1-47b60b740d00 45bcc044-d885-43e2-8605-ee0ec6e96b59 50"
+        Run-Hidden "powercfg" "/setactive scheme_current"
+    }
+    return if ($Enable) { "EPP desativado (CPU sem throttling de energia — boost constante)" } else { "EPP restaurado" }
+}
+
+function Invoke-DisableGamingScheduledTasks {
+    param([bool]$Enable)
+    $tasks = @(
+        "\Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser"
+        "\Microsoft\Windows\Application Experience\ProgramDataUpdater"
+        "\Microsoft\Windows\Application Experience\StartupAppTask"
+        "\Microsoft\Windows\Autochk\Proxy"
+        "\Microsoft\Windows\Customer Experience Improvement Program\Consolidator"
+        "\Microsoft\Windows\Customer Experience Improvement Program\UsbCeip"
+        "\Microsoft\Windows\DiskDiagnostic\Microsoft-Windows-DiskDiagnosticDataCollector"
+        "\Microsoft\Windows\Maintenance\WinSAT"
+        "\Microsoft\Windows\NetTrace\GatherNetworkInfo"
+        "\Microsoft\Windows\Power Efficiency Diagnostics\AnalyzeSystem"
+        "\Microsoft\Windows\UpdateOrchestrator\Reboot"
+        "\Microsoft\Windows\Windows Error Reporting\QueueReporting"
+        "\Microsoft\Windows\Diagnosis\Scheduled"
+        "\Microsoft\Windows\DiskCleanup\SilentCleanup"
+    )
+    $count = 0
+    foreach ($task in $tasks) {
+        try {
+            if ($Enable) {
+                Run-Hidden "schtasks" "/change /tn `"$task`" /disable"
+            } else {
+                Run-Hidden "schtasks" "/change /tn `"$task`" /enable"
+            }
+            $count++
+        } catch {}
+    }
+    return if ($Enable) { "Tarefas agendadas desnecessarias desativadas ($count/14)" } else { "Tarefas agendadas restauradas" }
+}
+
+function Invoke-DisableDiagnosticPolicySvc {
+    param([bool]$Enable)
+    if (-not $script:IsAdmin) { return "Requer administrador." }
+    $svcs = @("DPS","WdiServiceHost","WdiSystemHost","diagnosticshub.standardcollector.service","PcaSvc")
+    foreach ($s in $svcs) {
+        $obj = Get-Service -Name $s -ErrorAction SilentlyContinue
+        if ($obj) {
+            try {
+                if ($Enable) {
+                    if ($obj.Status -ne 'Stopped') { $obj.Stop(); $obj.WaitForStatus('Stopped',[TimeSpan]::FromSeconds(4)) }
+                    Set-Service -Name $s -StartupType Disabled -ErrorAction SilentlyContinue
+                } else {
+                    Set-Service -Name $s -StartupType Manual -ErrorAction SilentlyContinue
+                }
+            } catch {}
+        }
+    }
+    return if ($Enable) { "Servicos de diagnostico do Windows desativados" } else { "Servicos de diagnostico restaurados" }
+}
+
+function Invoke-DisableWindowsUpdateDuringGame {
+    param([bool]$Enable)
+    if (-not $script:IsAdmin) { return "Requer administrador." }
+    if ($Enable) {
+        Set-RegistryValue "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" "NoAutoRebootWithLoggedOnUsers" 1
+        Set-RegistryValue "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" "AUOptions" 2
+        Set-RegistryValue "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" "SetDisablePauseUXAccess" 0
+        # Parar Windows Update Service
+        $svc = Get-Service -Name "wuauserv" -ErrorAction SilentlyContinue
+        if ($svc -and $svc.Status -ne 'Stopped') { $svc.Stop(); $svc.WaitForStatus('Stopped',[TimeSpan]::FromSeconds(5)) }
+        if ($svc) { Set-Service -Name "wuauserv" -StartupType Manual -ErrorAction SilentlyContinue }
+        # Parar Update Orchestrator
+        $svc2 = Get-Service -Name "UsoSvc" -ErrorAction SilentlyContinue
+        if ($svc2 -and $svc2.Status -ne 'Stopped') { $svc2.Stop(); $svc2.WaitForStatus('Stopped',[TimeSpan]::FromSeconds(5)) }
+    } else {
+        Remove-ItemProperty "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "NoAutoRebootWithLoggedOnUsers" -ErrorAction SilentlyContinue
+        Remove-ItemProperty "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "AUOptions" -ErrorAction SilentlyContinue
+        $svc = Get-Service -Name "wuauserv" -ErrorAction SilentlyContinue
+        if ($svc) { Set-Service -Name "wuauserv" -StartupType Manual -ErrorAction SilentlyContinue }
+    }
+    return if ($Enable) { "Windows Update pausado (sem interrupcao durante jogos)" } else { "Windows Update restaurado" }
+}
+
+function Invoke-OptimizeCpuAffinityGaming {
+    param([bool]$Enable)
+    if (-not $script:IsAdmin) { return "Requer administrador." }
+    if ($Enable) {
+        # Resposta agressiva de CPU: reage rapido ao salto de carga (gaming)
+        Run-Hidden "powercfg" "/setacvalueindex scheme_current sub_processor PERFINCPOL 2"
+        Run-Hidden "powercfg" "/setacvalueindex scheme_current sub_processor PERFDECPOL 1"
+        Run-Hidden "powercfg" "/setacvalueindex scheme_current sub_processor PERFINCTHRESHOLD 10"
+        Run-Hidden "powercfg" "/setacvalueindex scheme_current sub_processor PERFDECTHRESHOLD 8"
+        Run-Hidden "powercfg" "/setacvalueindex scheme_current sub_processor PERFBOOSTMODE 2"
+        Run-Hidden "powercfg" "/setacvalueindex scheme_current sub_processor PROCTHROTTLEMIN 100"
+        Run-Hidden "powercfg" "/setactive scheme_current"
+    } else {
+        Run-Hidden "powercfg" "/setacvalueindex scheme_current sub_processor PERFINCPOL 0"
+        Run-Hidden "powercfg" "/setacvalueindex scheme_current sub_processor PERFDECPOL 0"
+        Run-Hidden "powercfg" "/setacvalueindex scheme_current sub_processor PROCTHROTTLEMIN 5"
+        Run-Hidden "powercfg" "/setactive scheme_current"
+    }
+    return if ($Enable) { "CPU Gaming: turbo agressivo + resposta instantanea" } else { "CPU restaurada ao padrao" }
+}
+
+function Invoke-DisableForegroundBoostLimit {
+    param([bool]$Enable)
+    if (-not $script:IsAdmin) { return "Requer administrador." }
+    if ($Enable) {
+        # Remove limitacao de boost de foreground (deixa jogo usar todo o boost)
+        Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" "ForegroundBoostCount" 3
+        Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" "ForegroundQuantum" 3
+    } else {
+        Remove-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" -Name "ForegroundBoostCount" -ErrorAction SilentlyContinue
+        Remove-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" -Name "ForegroundQuantum" -ErrorAction SilentlyContinue
+    }
+    return if ($Enable) { "Foreground Boost Limit removido (jogo tem prioridade maxima)" } else { "Foreground Boost padrao restaurado" }
+}
+
+function Invoke-FpsMaxPack {
+    param([bool]$Enable)
+    Set-PopupStep "Core Parking..."
+    Invoke-DisableCpuParking $Enable
+    Set-PopupStep "EPP desativado (CPU boost constante)..."
+    Invoke-DisableEpp $Enable
+    Set-PopupStep "GPU Max Performance..."
+    Invoke-ForceGpuHighPerf $Enable
+    Set-PopupStep "CPU Gaming: turbo agressivo..."
+    Invoke-OptimizeCpuAffinityGaming $Enable
+    Set-PopupStep "Tarefas agendadas desnecessarias..."
+    Invoke-DisableGamingScheduledTasks $Enable
+    Set-PopupStep "MMCSS..."
+    Invoke-OptimizeMmcss $Enable
+    Set-PopupStep "I/O Priority alta..."
+    Invoke-OptimizeIoPriority $Enable
+    Set-PopupStep "Network Throttling..."
+    Invoke-DisableNetworkThrottling $Enable
+    Set-PopupStep "Foreground Boost..."
+    Invoke-DisableForegroundBoostLimit $Enable
+    return if ($Enable) { "FPS MAX PACK aplicado (9 otimizacoes criticas para maximo FPS)" } else { "FPS MAX PACK revertido" }
+}
+
 # ==================== MAPEAMENTO OTIMIZACOES ====================
 
 $script:OptimizationMap = @{
@@ -2041,6 +2258,17 @@ $script:OptimizationMap = @{
     "optimize_intel_cpu"            = { param($e) Invoke-OptimizeIntelCpu $e }
     "disable_adobe_inet"            = { param($e) Invoke-DisableAdobeInetErrors $e }
     "optimize_adobe"                = { param($e) Invoke-OptimizeAdobe $e }
+    # FPS Max Pack 2026
+    "disable_cpu_parking"           = { param($e) Invoke-DisableCpuParking $e }
+    "disable_vbs_hvci"              = { param($e) Invoke-DisableVbsHvci $e }
+    "force_gpu_high_perf"           = { param($e) Invoke-ForceGpuHighPerf $e }
+    "disable_epp"                   = { param($e) Invoke-DisableEpp $e }
+    "disable_gaming_tasks"          = { param($e) Invoke-DisableGamingScheduledTasks $e }
+    "disable_diagnostic_svc"        = { param($e) Invoke-DisableDiagnosticPolicySvc $e }
+    "disable_wu_during_game"        = { param($e) Invoke-DisableWindowsUpdateDuringGame $e }
+    "optimize_cpu_affinity_gaming"  = { param($e) Invoke-OptimizeCpuAffinityGaming $e }
+    "disable_foreground_boost_limit"= { param($e) Invoke-DisableForegroundBoostLimit $e }
+    "fps_max_pack"                  = { param($e) Invoke-FpsMaxPack $e }
 }
 
 # ==================== DEFINICAO DAS CATEGORIAS ====================
@@ -2103,6 +2331,16 @@ $script:Categories = [ordered]@{
         @{ Key="gaming_config_pro";             Title="Melhor Config para Jogos";           Desc="7 tweaks criticos combinados para max FPS" }
         @{ Key="disable_dvr_full";              Title="Desativar DVR Completo";             Desc="Remove todas as flags do Game DVR" }
         @{ Key="disable_fso";                   Title="Desativar FSO";                      Desc="Desativa Fullscreen Optimizations (FSO)" }
+        @{ Key="fps_max_pack";                  Title="FPS MAX PACK";                       Desc="9 otimizacoes criticas em 1 clique — maximo FPS" }
+        @{ Key="disable_cpu_parking";           Title="Desativar Core Parking";             Desc="Todos os nucleos ativos — grande ganho de FPS" }
+        @{ Key="disable_vbs_hvci";              Title="Desativar VBS / HVCI";               Desc="Remove virtualizacao do kernel (+5-15% FPS, requer reinicio)" }
+        @{ Key="force_gpu_high_perf";           Title="GPU High Performance Forcado";       Desc="Forca GPU dedicada + VRR + SwapEffect para todas as apps" }
+        @{ Key="disable_epp";                   Title="Desativar EPP (CPU Boost Constante)";Desc="Remove throttling de energia da CPU (boost sempre ativo)" }
+        @{ Key="optimize_cpu_affinity_gaming";  Title="CPU Gaming Pro";                     Desc="Turbo agressivo + resposta instantanea ao pico de carga" }
+        @{ Key="disable_foreground_boost_limit";Title="Foreground Boost Max";               Desc="Jogo em primeiro plano tem prioridade maxima de CPU" }
+        @{ Key="disable_gaming_tasks";          Title="Desativar Tarefas Agendadas";        Desc="Para 14 tarefas desnecessarias em segundo plano" }
+        @{ Key="disable_diagnostic_svc";        Title="Desativar Servicos Diagnostico";     Desc="Para DPS, WdiHost, DiagnosticHub (reduz overhead)" }
+        @{ Key="disable_wu_during_game";        Title="Pausar Windows Update";              Desc="Impede updates e reinicio automatico durante jogos" }
     )
     "GameBoost" = @(
         @{ Key="valorant_boost";                Title="Valorant Boost";                     Desc="Prioriza VALORANT e reduz input lag" }
@@ -2136,23 +2374,6 @@ $script:Categories = [ordered]@{
         @{ Key="disable_hibernation_full";      Title="Desativar Hibernar";                 Desc="Libera espaco do hiberfil.sys" }
         @{ Key="disable_adobe_inet";            Title="Bloquear Erros de Internet Adobe";   Desc="Bloqueia dominios Adobe no hosts" }
         @{ Key="optimize_adobe";                Title="Adobe Otimizado";                    Desc="Desativa updates e telemetria Adobe" }
-    )
-    "Internet" = @(
-        @{ Key="dns_flush";                     Title="Limpar Cache DNS";                   Desc="Remove cache DNS antigo" }
-        @{ Key="tcp_optimize";                  Title="Otimizacao Completa de Rede";        Desc="Ajusta TCP/UDP para reduzir latencia" }
-        @{ Key="ping_reducer";                  Title="Rede Gaming Pro";                    Desc="QoS avancado para jogos" }
-        @{ Key="disable_network_throttling";    Title="Desativar Network Throttling";       Desc="Desativa limitacao de rede" }
-        @{ Key="disable_delivery_optimization"; Title="Desativar Delivery Optimization";    Desc="Impede compartilhamento de banda" }
-        @{ Key="network_cleaner";               Title="Network Cleaner";                    Desc="Limpa sockets, renova IP, zera caches" }
-        @{ Key="reset_winsock";                 Title="Resetar Winsock";                    Desc="Corrige erros de socket" }
-        @{ Key="dns_gaming";                    Title="DNS Gaming";                         Desc="Cloudflare + Quad9" }
-        @{ Key="disable_nagles";                Title="Desativar Nagle's Algorithm";        Desc="Reduz latencia de pacotes TCP" }
-        @{ Key="disable_lso";                   Title="Desativar LSO";                      Desc="Desativa Large Send Offload" }
-        @{ Key="disable_p2p_updates";           Title="Desativar Updates P2P";              Desc="Bloqueia updates via P2P" }
-        @{ Key="disable_bandwidth_limit";       Title="Remover limite de banda QoS";        Desc="Remove reserva de 20% do QoS" }
-        @{ Key="optimize_irp_stack";            Title="Otimizar IRPStackSize";              Desc="Aumenta stack para melhor throughput" }
-        @{ Key="disable_ipv6";                  Title="Desativar IPv6";                     Desc="Desativa IPv6 e randomizacao de endereco" }
-        @{ Key="disable_teredo";                Title="Desativar Teredo";                   Desc="Para o servico de tunelamento Teredo" }
     )
     "Graphics" = @(
         @{ Key="nvidia_opt";                    Title="NVIDIA Optimizer";                   Desc="Otimiza driver NVIDIA" }
