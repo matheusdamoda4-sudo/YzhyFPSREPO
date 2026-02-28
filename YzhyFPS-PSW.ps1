@@ -897,7 +897,7 @@ function Invoke-DisableEdgePreloading {
     $val = if ($Enable) { 0 } else { 1 }
     # Edge Chromium (caminho correto para o Edge atual)
     Set-RegistryValue "HKLM:\SOFTWARE\Policies\Microsoft\Edge" "StartupBoostEnabled" $val
-    Set-RegistryValue "HKLM:\SOFTWARE\Policies\Microsoft\Edge" "BackgroundModeEnabled" $val
+     Set-RegistryValue "HKLM:\SOFTWARE\Policies\Microsoft\Edge" "BackgroundModeEnabled" $val
     Set-RegistryValue "HKCU:\Software\Policies\Microsoft\Edge" "StartupBoostEnabled" $val
     Set-RegistryValue "HKCU:\Software\Policies\Microsoft\Edge" "BackgroundModeEnabled" $val
     return if ($Enable) { "Edge Preloading e background mode desativados" } else { "Edge Preloading restaurado" }
@@ -2109,6 +2109,370 @@ function Invoke-FpsMaxPack {
     return if ($Enable) { "FPS MAX PACK aplicado (9 otimizacoes criticas para maximo FPS)" } else { "FPS MAX PACK revertido" }
 }
 
+# =============== NOVAS OTIMIZACOES 2026 — EXTRA 25 ===============
+
+function Invoke-SetBestVisualPerformance {
+    param([bool]$Enable)
+    if ($Enable) {
+        Set-RegistryValue "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" "VisualFXSetting" 2
+        Run-Hidden "reg" 'add "HKCU\Control Panel\Desktop" /v UserPreferencesMask /t REG_BINARY /d 9012038010000000 /f'
+        Run-Hidden "reg" 'add "HKCU\Control Panel\Desktop\WindowMetrics" /v MinAnimate /t REG_SZ /d 0 /f'
+        Run-Hidden "reg" 'add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v TaskbarAnimations /t REG_DWORD /d 0 /f'
+        Run-Hidden "reg" 'add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v ListviewAlphaSelect /t REG_DWORD /d 0 /f'
+        Run-Hidden "reg" 'add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v ListviewShadow /t REG_DWORD /d 0 /f'
+        Run-Hidden "reg" 'add "HKCU\Software\Microsoft\Windows\DWM" /v EnableAeroPeek /t REG_DWORD /d 0 /f'
+    } else {
+        Set-RegistryValue "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" "VisualFXSetting" 0
+        Run-Hidden "reg" 'add "HKCU\Control Panel\Desktop" /v UserPreferencesMask /t REG_BINARY /d 9e3e078012000000 /f'
+        Run-Hidden "reg" 'add "HKCU\Control Panel\Desktop\WindowMetrics" /v MinAnimate /t REG_SZ /d 1 /f'
+        Run-Hidden "reg" 'add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v TaskbarAnimations /t REG_DWORD /d 1 /f'
+    }
+    return if ($Enable) { "Visual: melhor desempenho ativado" } else { "Visual: padrao restaurado" }
+}
+
+function Invoke-DisableRemoteRegistry {
+    param([bool]$Enable)
+    if (-not $script:IsAdmin) { return "Requer administrador." }
+    if ($Enable) {
+        Run-Hidden "sc" "config RemoteRegistry start= disabled"
+        Run-Hidden "sc" "stop RemoteRegistry"
+    } else {
+        Run-Hidden "sc" "config RemoteRegistry start= demand"
+    }
+    return if ($Enable) { "Remote Registry desativado" } else { "Remote Registry restaurado" }
+}
+
+function Invoke-DisableTabletInputService {
+    param([bool]$Enable)
+    if (-not $script:IsAdmin) { return "Requer administrador." }
+    $svcs = @("TabletInputService","PenService","Wbiosrvc")
+    foreach ($s in $svcs) {
+        $obj = Get-Service -Name $s -ErrorAction SilentlyContinue
+        if ($obj) {
+            try {
+                if ($Enable) {
+                    if ($obj.Status -ne 'Stopped') { $obj.Stop(); $obj.WaitForStatus('Stopped',[TimeSpan]::FromSeconds(4)) }
+                    Set-Service -Name $s -StartupType Disabled -ErrorAction SilentlyContinue
+                } else {
+                    Set-Service -Name $s -StartupType Manual -ErrorAction SilentlyContinue
+                }
+            } catch {}
+        }
+    }
+    return if ($Enable) { "Servicos Tablet PC desativados" } else { "Servicos Tablet PC restaurados" }
+}
+
+function Invoke-DisableStoreAutoUpdate {
+    param([bool]$Enable)
+    $val = if ($Enable) { 1 } else { 0 }
+    if ($script:IsAdmin) {
+        Set-RegistryValue "HKLM:\SOFTWARE\Policies\Microsoft\WindowsStore" "AutoDownload" $(if ($Enable) { 2 } else { 4 })
+        Set-RegistryValue "HKLM:\SOFTWARE\Policies\Microsoft\WindowsStore" "DisableAutoInstall" $val
+    }
+    Set-RegistryValue "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" "SilentInstalledAppsEnabled" $(if ($Enable) { 0 } else { 1 })
+    return if ($Enable) { "Auto-update da Store desativado" } else { "Auto-update da Store restaurado" }
+}
+
+function Invoke-DisableStartupItems {
+    param([bool]$Enable)
+    if ($Enable) {
+        $startupKeys = @(
+            "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
+            "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
+        )
+        $removeItems = @("OneDrive","Teams","Discord","Spotify","EpicGamesLauncher","GogGalaxy","BattleNet","Steam")
+        foreach ($key in $startupKeys) {
+            foreach ($item in $removeItems) {
+                Remove-ItemProperty -Path $key -Name $item -ErrorAction SilentlyContinue
+            }
+        }
+        # Startup delay zero
+        Set-RegistryValue "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Serialize" "StartupDelayInMSec" 0
+    } else {
+        Set-RegistryValue "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Serialize" "StartupDelayInMSec" 500
+    }
+    return if ($Enable) { "Itens de inicializacao otimizados (atraso zerado)" } else { "Inicializacao restaurada" }
+}
+
+function Invoke-DisableSteamOverlay {
+    param([bool]$Enable)
+    $val = if ($Enable) { 0 } else { 1 }
+    Set-RegistryValue "HKCU:\Software\Valve\Steam" "EnableGameOverlay" $val
+    Set-RegistryValue "HKCU:\Software\Valve\Steam" "EnableDesktopShortcutPortal" $val
+    return if ($Enable) { "Overlay do Steam desativado" } else { "Overlay do Steam restaurado" }
+}
+
+function Invoke-DisableNvidiaGeforceOverlay {
+    param([bool]$Enable)
+    if ($Enable) {
+        Run-Hidden "reg" 'add "HKCU\Software\NVIDIA Corporation\NvControlPanel2\Client" /v OptInOrOutPreference /t REG_DWORD /d 0 /f'
+        Set-RegistryValue "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" "NvBackend" "" "String"
+        if ($script:IsAdmin) {
+            Run-Hidden "sc" "config NvContainerLocalSystem start= disabled"
+        }
+    } else {
+        Remove-ItemProperty "HKCU:\Software\NVIDIA Corporation\NvControlPanel2\Client" -Name "OptInOrOutPreference" -ErrorAction SilentlyContinue
+        if ($script:IsAdmin) {
+            Run-Hidden "sc" "config NvContainerLocalSystem start= demand"
+        }
+    }
+    return if ($Enable) { "Overlay GeForce Experience desativado" } else { "Overlay GeForce Experience restaurado" }
+}
+
+function Invoke-DisableFocusStealPrevention {
+    param([bool]$Enable)
+    $val = if ($Enable) { 0 } else { 200560 }
+    Set-RegistryValue "HKCU:\Control Panel\Desktop" "ForegroundLockTimeout" $val
+    return if ($Enable) { "ForegroundLockTimeout zerado (sem roubo de foco)" } else { "ForegroundLockTimeout restaurado" }
+}
+
+function Invoke-BoostGameCpuPriority {
+    param([bool]$Enable)
+    if (-not $script:IsAdmin) { return "Requer administrador." }
+    $games = @("javaw","java","csgo","cs2","valorant-win64-shipping","fortniteclient-win64-shipping","r5apex","gta5","robloxplayerbeta","leagueoflegends","overwatch")
+    foreach ($g in $games) {
+        if ($Enable) {
+            New-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\$g.exe\PerfOptions" -Force -ErrorAction SilentlyContinue | Out-Null
+            Set-RegistryValue "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\$g.exe\PerfOptions" "CpuPriorityClass" 3
+        } else {
+            Remove-Item "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\$g.exe\PerfOptions" -Force -Recurse -ErrorAction SilentlyContinue
+        }
+    }
+    return if ($Enable) { "Prioridade CPU Alta aplicada a jogos populares" } else { "Prioridade CPU restaurada" }
+}
+
+function Invoke-PubgBoost {
+    param([bool]$Enable)
+    Invoke-DisableGameDvr $Enable
+    Invoke-DisableXboxGameBar $Enable
+    Invoke-FullscreenOptimization $Enable
+    Invoke-DisableNetworkThrottling $Enable
+    Invoke-OptimizeGamesSystemProfile $Enable
+    Invoke-UltimatePerformance $Enable
+    if ($Enable -and $script:IsAdmin) {
+        Run-Hidden "reg" 'add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\TslGame.exe\PerfOptions" /v CpuPriorityClass /t REG_DWORD /d 3 /f'
+    } elseif (-not $Enable -and $script:IsAdmin) {
+        Run-Hidden "reg" 'delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\TslGame.exe\PerfOptions" /f' 2>$null
+    }
+    return if ($Enable) { "PUBG Battlegrounds Boost aplicado" } else { "PUBG Boost revertido" }
+}
+
+function Invoke-Overwatch2Boost {
+    param([bool]$Enable)
+    Invoke-DisableGameDvr $Enable
+    Invoke-DisableXboxGameBar $Enable
+    Invoke-FullscreenOptimization $Enable
+    Invoke-DisableNetworkThrottling $Enable
+    Invoke-OptimizeGamesSystemProfile $Enable
+    if ($Enable -and $script:IsAdmin) {
+        Run-Hidden "reg" 'add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\Overwatch.exe\PerfOptions" /v CpuPriorityClass /t REG_DWORD /d 3 /f'
+    } elseif (-not $Enable -and $script:IsAdmin) {
+        Run-Hidden "reg" 'delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\Overwatch.exe\PerfOptions" /f' 2>$null
+    }
+    return if ($Enable) { "Overwatch 2 Boost aplicado" } else { "Overwatch 2 Boost revertido" }
+}
+
+function Invoke-CleanEventLogs {
+    param([bool]$Enable)
+    if (-not $Enable) { return "Limpeza de logs executa apenas quando ativada." }
+    Set-PopupStep "Limpando event logs..."
+    $logs = @("Application","System","Security","Setup","Microsoft-Windows-TaskScheduler/Operational")
+    $count = 0
+    foreach ($log in $logs) {
+        try {
+            & wevtutil cl "$log" 2>$null
+            $count++
+        } catch {}
+    }
+    return "Event logs limpos ($count logs processados)"
+}
+
+function Invoke-OptimizePagefile {
+    param([bool]$Enable)
+    if (-not $script:IsAdmin) { return "Requer administrador." }
+    if ($Enable) {
+        # Auto-managed pagefile — desativa gerenciamento automatico e define tamanho fixo
+        $ram = [Math]::Round((Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory / 1MB)
+        # Pagefile = 1.5x RAM (minimo 2048 MB, maximo 8192 MB)
+        $pgMin = [Math]::Max(2048, [Math]::Min(8192, [int]($ram * 1.5)))
+        $pgMax = [Math]::Max(4096, [Math]::Min(16384, $ram * 2))
+        $cs = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction SilentlyContinue
+        if ($cs) {
+            $cs | Set-CimInstance -Property @{AutomaticManagedPagefile = $false} -ErrorAction SilentlyContinue
+        }
+        Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "PagingFiles" "C:\pagefile.sys $pgMin $pgMax" "String"
+    } else {
+        $cs = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction SilentlyContinue
+        if ($cs) {
+            $cs | Set-CimInstance -Property @{AutomaticManagedPagefile = $true} -ErrorAction SilentlyContinue
+        }
+    }
+    return if ($Enable) { "PageFile otimizado (tamanho fixo baseado na RAM)" } else { "PageFile restaurado para gerenciamento automatico" }
+}
+
+function Invoke-DisableDefenderCloud {
+    param([bool]$Enable)
+    if (-not $script:IsAdmin) { return "Requer administrador." }
+    if ($Enable) {
+        Run-Hidden "powershell" "-Command Set-MpPreference -MAPSReporting 0"
+        Run-Hidden "powershell" "-Command Set-MpPreference -SubmitSamplesConsent 2"
+        Run-Hidden "powershell" "-Command Set-MpPreference -CloudBlockLevel 0"
+        Set-RegistryValue "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Spynet" "SpynetReporting" 0
+        Set-RegistryValue "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Spynet" "SubmitSamplesConsent" 2
+    } else {
+        Run-Hidden "powershell" "-Command Set-MpPreference -MAPSReporting 2"
+        Run-Hidden "powershell" "-Command Set-MpPreference -SubmitSamplesConsent 1"
+        Remove-ItemProperty "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Spynet" -Name "SpynetReporting" -ErrorAction SilentlyContinue
+        Remove-ItemProperty "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Spynet" -Name "SubmitSamplesConsent" -ErrorAction SilentlyContinue
+    }
+    return if ($Enable) { "Defender Cloud Protection desativado" } else { "Defender Cloud Protection restaurado" }
+}
+
+function Invoke-DisableSuperfetchFull {
+    param([bool]$Enable)
+    if (-not $script:IsAdmin) { return "Requer administrador." }
+    if ($Enable) {
+        Run-Hidden "sc" "config SysMain start= disabled"
+        Run-Hidden "sc" "stop SysMain"
+        Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" "EnablePrefetcher" 0
+        Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" "EnableBootTrace" 0
+    } else {
+        Run-Hidden "sc" "config SysMain start= auto"
+        Run-Hidden "sc" "start SysMain"
+        Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" "EnablePrefetcher" 3
+    }
+    return if ($Enable) { "SysMain/Superfetch completamente desativado" } else { "SysMain/Superfetch restaurado" }
+}
+
+function Invoke-DisableWpad {
+    param([bool]$Enable)
+    Set-RegistryValue "HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings" "AutoDetect" $(if ($Enable) { 0 } else { 1 })
+    if ($script:IsAdmin) {
+        Set-RegistryValue "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\Internet Settings" "AutoDetect" $(if ($Enable) { 0 } else { 1 })
+    }
+    return if ($Enable) { "WPAD (auto-deteccao de proxy) desativado" } else { "WPAD restaurado" }
+}
+
+function Invoke-OptimizeTcpBuffers {
+    param([bool]$Enable)
+    if (-not $script:IsAdmin) { return "Requer administrador." }
+    if ($Enable) {
+        Run-Hidden "netsh" "int tcp set global maxsyndataretransmissions=2"
+        Run-Hidden "netsh" "int tcp set global initialrto=2000"
+        Run-Hidden "netsh" "int tcp set global rss=enabled"
+        Run-Hidden "netsh" "int tcp set global nonsackrttresiliency=disabled"
+        Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "TcpTimedWaitDelay" 30
+        Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "MaxUserPort" 65534
+        Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "TcpNumConnections" 16777214
+    } else {
+        Run-Hidden "netsh" "int tcp set global maxsyndataretransmissions=default"
+        Run-Hidden "netsh" "int tcp set global initialrto=3000"
+        Run-Hidden "netsh" "int tcp set global nonsackrttresiliency=default"
+        Remove-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" -Name "TcpTimedWaitDelay" -ErrorAction SilentlyContinue
+        Remove-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" -Name "MaxUserPort" -ErrorAction SilentlyContinue
+    }
+    return if ($Enable) { "Buffers TCP otimizados (MaxPort 65534 + TimeWait 30s)" } else { "Buffers TCP restaurados" }
+}
+
+function Invoke-Disable6to4Isatap {
+    param([bool]$Enable)
+    if ($Enable) {
+        Run-Hidden "netsh" "interface 6to4 set state disabled"
+        Run-Hidden "netsh" "interface isatap set state disabled"
+        Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters" "DisabledComponents" 0xFF
+    } else {
+        Run-Hidden "netsh" "interface 6to4 set state default"
+        Run-Hidden "netsh" "interface isatap set state default"
+        Remove-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters" -Name "DisabledComponents" -ErrorAction SilentlyContinue
+    }
+    return if ($Enable) { "6to4 e ISATAP desativados" } else { "6to4 e ISATAP restaurados" }
+}
+
+function Invoke-DisableEcnTcp {
+    param([bool]$Enable)
+    if ($Enable) {
+        Run-Hidden "netsh" "int tcp set global ecncapability=disabled"
+    } else {
+        Run-Hidden "netsh" "int tcp set global ecncapability=default"
+    }
+    return if ($Enable) { "ECN (Explicit Congestion Notification) desativado" } else { "ECN restaurado" }
+}
+
+function Invoke-SetOptimalTtl {
+    param([bool]$Enable)
+    if (-not $script:IsAdmin) { return "Requer administrador." }
+    $val = if ($Enable) { 64 } else { 128 }
+    Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "DefaultTTL" $val
+    return if ($Enable) { "TTL otimizado para 64 (ideal para gaming)" } else { "TTL restaurado para 128" }
+}
+
+function Invoke-DisableDwmTransitions {
+    param([bool]$Enable)
+    $val = if ($Enable) { 0 } else { 1 }
+    Run-Hidden "reg" "add `"HKCU\Software\Microsoft\Windows\DWM`" /v Composition /t REG_DWORD /d $val /f"
+    Run-Hidden "reg" "add `"HKCU\Software\Microsoft\Windows\DWM`" /v ColorizationOpaqueBlend /t REG_DWORD /d $val /f"
+    Set-RegistryValue "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "ExtendedUIHoverTime" $(if ($Enable) { 1 } else { 400 })
+    return if ($Enable) { "Transicoes DWM desativadas" } else { "Transicoes DWM restauradas" }
+}
+
+function Invoke-OptimizeTdrSettings {
+    param([bool]$Enable)
+    if (-not $script:IsAdmin) { return "Requer administrador." }
+    if ($Enable) {
+        Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrDelay" 10
+        Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrDdiDelay" 10
+        Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrLevel" 3
+    } else {
+        Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrDelay" 2
+        Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrDdiDelay" 5
+        Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrLevel" 3
+    }
+    return if ($Enable) { "TDR otimizado (delay 10s — sem crash de driver em picos)" } else { "TDR padrao restaurado" }
+}
+
+function Invoke-SetD3dGpuPreference {
+    param([bool]$Enable)
+    if ($Enable) {
+        Set-RegistryValue "HKCU:\Software\Microsoft\DirectX\UserGpuPreferences" "DirectXUserGlobalSettings" "GpuPreference=2;VRROptimizeEnable=1;SwapEffectUpgradeEnable=1;" "String"
+    } else {
+        Remove-ItemProperty "HKCU:\Software\Microsoft\DirectX\UserGpuPreferences" -Name "DirectXUserGlobalSettings" -ErrorAction SilentlyContinue
+    }
+    return if ($Enable) { "GPU dedicada + VRR forcados via DirectX" } else { "Preferencia GPU DirectX restaurada" }
+}
+
+function Invoke-EnableLargeSystemCache {
+    param([bool]$Enable)
+    if (-not $script:IsAdmin) { return "Requer administrador." }
+    $val = if ($Enable) { 1 } else { 0 }
+    Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "LargeSystemCache" $val
+    return if ($Enable) { "Large System Cache ativado (melhor uso de RAM para I/O)" } else { "Large System Cache desativado" }
+}
+
+function Invoke-OptimizeRawMouseInput {
+    param([bool]$Enable)
+    if ($Enable) {
+        # Garantir Raw Input no registro
+        Run-Hidden "reg" 'add "HKCU\Control Panel\Mouse" /v MouseSpeed /t REG_SZ /d 0 /f'
+        Run-Hidden "reg" 'add "HKCU\Control Panel\Mouse" /v MouseThreshold1 /t REG_SZ /d 0 /f'
+        Run-Hidden "reg" 'add "HKCU\Control Panel\Mouse" /v MouseThreshold2 /t REG_SZ /d 0 /f'
+        # Baixa latencia HID_COMPLIANT_MOUSE via power
+        if ($script:IsAdmin) {
+            Get-PnpDevice -Class HIDClass -ErrorAction SilentlyContinue | ForEach-Object {
+                $p = "HKLM:\SYSTEM\CurrentControlSet\Enum\$($_.InstanceId)\Device Parameters"
+                if (Test-Path $p) {
+                    Set-ItemProperty -Path $p -Name "EnhancedPowerManagementEnabled" -Value 0 -ErrorAction SilentlyContinue
+                    Set-ItemProperty -Path $p -Name "SelectiveSuspendEnabled" -Value 0 -ErrorAction SilentlyContinue
+                }
+            }
+        }
+    } else {
+        Run-Hidden "reg" 'add "HKCU\Control Panel\Mouse" /v MouseSpeed /t REG_SZ /d 1 /f'
+        Run-Hidden "reg" 'add "HKCU\Control Panel\Mouse" /v MouseThreshold1 /t REG_SZ /d 6 /f'
+        Run-Hidden "reg" 'add "HKCU\Control Panel\Mouse" /v MouseThreshold2 /t REG_SZ /d 10 /f'
+    }
+    return if ($Enable) { "Raw Input do mouse otimizado (HID sem suspend)" } else { "Mouse Input restaurado" }
+}
+
 # ==================== MAPEAMENTO OTIMIZACOES ====================
 
 $script:OptimizationMap = @{
@@ -2269,6 +2633,32 @@ $script:OptimizationMap = @{
     "optimize_cpu_affinity_gaming"  = { param($e) Invoke-OptimizeCpuAffinityGaming $e }
     "disable_foreground_boost_limit"= { param($e) Invoke-DisableForegroundBoostLimit $e }
     "fps_max_pack"                  = { param($e) Invoke-FpsMaxPack $e }
+    # Extra 25 — 2026
+    "set_best_visual_perf"          = { param($e) Invoke-SetBestVisualPerformance $e }
+    "disable_remote_registry"       = { param($e) Invoke-DisableRemoteRegistry $e }
+    "disable_tablet_input_svc"      = { param($e) Invoke-DisableTabletInputService $e }
+    "disable_store_auto_update"     = { param($e) Invoke-DisableStoreAutoUpdate $e }
+    "disable_startup_items"         = { param($e) Invoke-DisableStartupItems $e }
+    "disable_steam_overlay"         = { param($e) Invoke-DisableSteamOverlay $e }
+    "disable_nvidia_geforce_overlay"= { param($e) Invoke-DisableNvidiaGeforceOverlay $e }
+    "disable_focus_steal"           = { param($e) Invoke-DisableFocusStealPrevention $e }
+    "boost_game_cpu_priority"       = { param($e) Invoke-BoostGameCpuPriority $e }
+    "pubg_boost"                    = { param($e) Invoke-PubgBoost $e }
+    "overwatch2_boost"              = { param($e) Invoke-Overwatch2Boost $e }
+    "clean_event_logs"              = { param($e) Invoke-CleanEventLogs $e }
+    "optimize_pagefile"             = { param($e) Invoke-OptimizePagefile $e }
+    "disable_defender_cloud"        = { param($e) Invoke-DisableDefenderCloud $e }
+    "disable_superfetch_full"       = { param($e) Invoke-DisableSuperfetchFull $e }
+    "disable_wpad"                  = { param($e) Invoke-DisableWpad $e }
+    "optimize_tcp_buffers"          = { param($e) Invoke-OptimizeTcpBuffers $e }
+    "disable_6to4_isatap"           = { param($e) Invoke-Disable6to4Isatap $e }
+    "disable_ecn_tcp"               = { param($e) Invoke-DisableEcnTcp $e }
+    "set_optimal_ttl"               = { param($e) Invoke-SetOptimalTtl $e }
+    "disable_dwm_transitions"       = { param($e) Invoke-DisableDwmTransitions $e }
+    "optimize_tdr_settings"         = { param($e) Invoke-OptimizeTdrSettings $e }
+    "set_d3d_gpu_preference"        = { param($e) Invoke-SetD3dGpuPreference $e }
+    "enable_large_system_cache"     = { param($e) Invoke-EnableLargeSystemCache $e }
+    "optimize_raw_mouse_input"      = { param($e) Invoke-OptimizeRawMouseInput $e }
 }
 
 # ==================== DEFINICAO DAS CATEGORIAS ====================
@@ -2314,6 +2704,11 @@ $script:Categories = [ordered]@{
         @{ Key="optimize_context_menu";         Title="Clique Direito Otimizado";           Desc="Menu classico rapido + remove sombras" }
         @{ Key="reduced_processes";             Title="Processos Reduzidos";                Desc="Para servicos desnecessarios (Xbox preservado)" }
         @{ Key="disable_bg_apps_all";           Title="Desativar Apps em Segundo Plano";    Desc="Bloqueia todos os apps UWP em background" }
+        @{ Key="set_best_visual_perf";           Title="Visual: Melhor Desempenho";           Desc="Desativa todos os efeitos visuais desnecessarios" }
+        @{ Key="disable_remote_registry";        Title="Desativar Remote Registry";          Desc="Para servico de registro remoto" }
+        @{ Key="disable_tablet_input_svc";       Title="Desativar Servicos Tablet PC";       Desc="Para TabletInputService e PenService" }
+        @{ Key="disable_store_auto_update";      Title="Desativar Auto-Update da Store";     Desc="Impede atualizacoes automaticas da Windows Store" }
+        @{ Key="disable_startup_items";          Title="Otimizar Inicializacao";             Desc="Remove itens pesados da inicializacao + atraso zerado" }
     )
     "Games" = @(
         @{ Key="game_mode";                     Title="Game Mode";                          Desc="Otimiza sistema para jogos" }
@@ -2341,6 +2736,10 @@ $script:Categories = [ordered]@{
         @{ Key="disable_gaming_tasks";          Title="Desativar Tarefas Agendadas";        Desc="Para 14 tarefas desnecessarias em segundo plano" }
         @{ Key="disable_diagnostic_svc";        Title="Desativar Servicos Diagnostico";     Desc="Para DPS, WdiHost, DiagnosticHub (reduz overhead)" }
         @{ Key="disable_wu_during_game";        Title="Pausar Windows Update";              Desc="Impede updates e reinicio automatico durante jogos" }
+        @{ Key="disable_steam_overlay";         Title="Desativar Overlay Steam";            Desc="Remove overlay do Steam que consome CPU/GPU" }
+        @{ Key="disable_nvidia_geforce_overlay"; Title="Desativar Overlay GeForce Exp.";    Desc="Desativa overlay e container NVIDIA" }
+        @{ Key="disable_focus_steal";           Title="Desativar Roubo de Foco";            Desc="ForegroundLockTimeout zero (sem perda de foco no jogo)" }
+        @{ Key="boost_game_cpu_priority";       Title="CPU Alta Prioridade em Jogos";       Desc="Aplica CpuPriorityClass=High p/ jogos populares" }
     )
     "GameBoost" = @(
         @{ Key="valorant_boost";                Title="Valorant Boost";                     Desc="Prioriza VALORANT e reduz input lag" }
@@ -2351,6 +2750,8 @@ $script:Categories = [ordered]@{
         @{ Key="cs2_boost";                     Title="CS2 / CS:GO Boost";                  Desc="Prioridade alta para Counter-Strike" }
         @{ Key="apex_boost";                    Title="Apex Legends Boost";                 Desc="Prioridade + rede otimizada" }
         @{ Key="lol_boost";                     Title="League of Legends Boost";            Desc="Prioridade + Nagle desativado" }
+        @{ Key="pubg_boost";                    Title="PUBG Battlegrounds Boost";           Desc="Otimizacoes completas para PUBG" }
+        @{ Key="overwatch2_boost";              Title="Overwatch 2 Boost";                  Desc="Prioridade + rede otimizada para OW2" }
     )
     "Booster" = @(
         @{ Key="cpu_boost";                     Title="CPU Boost";                          Desc="Ajusta prioridade e afinidade da CPU" }
@@ -2374,6 +2775,32 @@ $script:Categories = [ordered]@{
         @{ Key="disable_hibernation_full";      Title="Desativar Hibernar";                 Desc="Libera espaco do hiberfil.sys" }
         @{ Key="disable_adobe_inet";            Title="Bloquear Erros de Internet Adobe";   Desc="Bloqueia dominios Adobe no hosts" }
         @{ Key="optimize_adobe";                Title="Adobe Otimizado";                    Desc="Desativa updates e telemetria Adobe" }
+        @{ Key="clean_event_logs";              Title="Limpar Event Logs";                  Desc="Apaga todos os logs de eventos do Windows" }
+        @{ Key="optimize_pagefile";             Title="Otimizar PageFile";                  Desc="Define tamanho fixo do pagefile baseado na RAM" }
+        @{ Key="disable_defender_cloud";        Title="Desativar Cloud Protection";         Desc="Remove protecao na nuvem do Windows Defender" }
+        @{ Key="disable_superfetch_full";       Title="Desativar SysMain Completo";         Desc="Para SysMain e prefetch por completo" }
+    )
+    "Internet" = @(
+        @{ Key="dns_flush";                     Title="Limpar Cache DNS";                    Desc="Flush do cache DNS" }
+        @{ Key="tcp_optimize";                  Title="Otimizar TCP";                        Desc="Ajusta parametros TCP para baixa latencia" }
+        @{ Key="ping_reducer";                  Title="Ping Reducer Pro";                    Desc="TCP + QoS 0% + ECN off para menor ping" }
+        @{ Key="disable_network_throttling";    Title="Desativar Network Throttling";        Desc="Remove limitacao de banda da rede" }
+        @{ Key="disable_delivery_optimization"; Title="Desativar Delivery Optimization";    Desc="Bloqueia download P2P de atualizacoes" }
+        @{ Key="network_cleaner";               Title="Network Cleaner";                     Desc="DNS + IP renovado + Winsock reset" }
+        @{ Key="reset_winsock";                 Title="Resetar Winsock";                     Desc="Reset completo do Winsock e TCP/IP" }
+        @{ Key="dns_gaming";                    Title="DNS Gaming (Cloudflare + Quad9)";     Desc="Aplica DNS rapido para jogos" }
+        @{ Key="disable_nagles";                Title="Desativar Nagle's Algorithm";         Desc="Reduz latencia TCP de jogos" }
+        @{ Key="disable_lso";                   Title="Desativar LSO";                       Desc="Desativa Large Send Offload" }
+        @{ Key="disable_p2p_updates";           Title="Desativar Updates P2P";               Desc="Bloqueia compartilhamento P2P de atualizacoes" }
+        @{ Key="disable_bandwidth_limit";       Title="Remover Limite QoS";                  Desc="Remove reserva de 20% de banda do QoS" }
+        @{ Key="optimize_irp_stack";            Title="Otimizar IRP Stack";                  Desc="Aumenta IRPStackSize de rede para 32" }
+        @{ Key="disable_ipv6";                  Title="Desativar IPv6";                      Desc="Remove protocolos IPv6 (melhora latencia IPv4)" }
+        @{ Key="disable_teredo";                Title="Desativar Teredo";                    Desc="Desativa tunelamento Teredo" }
+        @{ Key="disable_wpad";                  Title="Desativar WPAD";                      Desc="Remove auto-deteccao de proxy (WPAD)" }
+        @{ Key="optimize_tcp_buffers";          Title="Buffers TCP Otimizados";              Desc="MaxPort 65534 + TimeWait 30s + MaxConn" }
+        @{ Key="disable_6to4_isatap";           Title="Desativar 6to4 e ISATAP";             Desc="Remove tuneis de transicao IPv4/IPv6" }
+        @{ Key="disable_ecn_tcp";               Title="Desativar ECN";                       Desc="Remove Explicit Congestion Notification" }
+        @{ Key="set_optimal_ttl";               Title="TTL Otimizado (64)";                  Desc="Define TTL 64 — resposta mais rapida" }
     )
     "Graphics" = @(
         @{ Key="nvidia_opt";                    Title="NVIDIA Optimizer";                   Desc="Otimiza driver NVIDIA" }
@@ -2381,6 +2808,9 @@ $script:Categories = [ordered]@{
         @{ Key="enable_hags";                   Title="Habilitar HAGS";                     Desc="Hardware-Accelerated GPU Scheduling" }
         @{ Key="clear_shader_cache";            Title="Limpar cache de shaders";            Desc="Limpa DX/NVIDIA/AMD caches" }
         @{ Key="disable_mpo";                   Title="Desativar MPO";                      Desc="Desativa Multiplane Overlay" }
+        @{ Key="disable_dwm_transitions";       Title="Desativar Transicoes DWM";           Desc="Remove animacoes de composicao DWM" }
+        @{ Key="optimize_tdr_settings";         Title="Otimizar TDR";                       Desc="Delay 10s — evita crash de driver em picos" }
+        @{ Key="set_d3d_gpu_preference";        Title="GPU Dedicada + VRR DirectX";         Desc="Forca GPU dedicada e VRR globalmente" }
     )
     "Kernel" = @(
         @{ Key="kernel_dynamic_tick";           Title="Desativar Dynamic Tick";             Desc="BCD disabledynamictick (requer reinicio)" }
@@ -2393,6 +2823,7 @@ $script:Categories = [ordered]@{
         @{ Key="memory_manager_pro";            Title="Memory Manager Pro";                 Desc="Tweaks de gerenciamento de memoria" }
         @{ Key="cache_manager_pro";             Title="Cache Manager Pro";                  Desc="Ajusta cache para baixa latencia" }
         @{ Key="optimize_ntfs_memory";          Title="Otimizar NTFS Memory";               Desc="Aumenta cache NTFS para 256MB" }
+        @{ Key="enable_large_system_cache";     Title="Large System Cache";                 Desc="Usa mais RAM para cache de I/O do sistema" }
     )
     "Input Lag" = @(
         @{ Key="mouse_optimize";                Title="Mouse Optimization";                 Desc="Reduz latencia do mouse" }
@@ -2403,6 +2834,7 @@ $script:Categories = [ordered]@{
         @{ Key="optimize_pcie_aspm";            Title="Otimizar PCIe ASPM";                 Desc="Desabilita power saving PCIe" }
         @{ Key="optimize_audio_latency";        Title="Audio Latency (WASAPI)";             Desc="Reduz latencia de audio" }
         @{ Key="optimize_timer_resolution";     Title="Otimizar Timer Resolution";          Desc="Timer de alta precisao para gaming" }
+        @{ Key="optimize_raw_mouse_input";      Title="Raw Input Mouse Otimizado";          Desc="HID sem suspend + aceleracao off" }
     )
     "Menu" = @(
         @{ Key="disable_autoplay";              Title="Desativar AutoPlay";                 Desc="Evita AutoPlay em dispositivos" }
@@ -2470,20 +2902,84 @@ Add-Type -AssemblyName WindowsBase
             </Setter>
         </Style>
 
-        <!-- Toggle Style -->
+        <!-- Toggle Style — Smooth Slide Animation -->
         <Style x:Key="ToggleSwitch" TargetType="CheckBox">
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="CheckBox">
                         <Grid>
-                            <Border x:Name="track" Width="44" Height="24" CornerRadius="12" Background="{StaticResource ToggleOff}" Cursor="Hand"/>
-                            <Border x:Name="thumb" Width="18" Height="18" CornerRadius="9" Background="#8B949E" HorizontalAlignment="Left" Margin="3,0,0,0" VerticalAlignment="Center"/>
+                            <Border x:Name="track" Width="44" Height="24" CornerRadius="12" Background="#30363D" Cursor="Hand"/>
+                            <Border x:Name="thumb" Width="18" Height="18" CornerRadius="9" Background="#8B949E"
+                                    HorizontalAlignment="Left" Margin="3,0,0,0" VerticalAlignment="Center"/>
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="track" Property="Background" Value="{StaticResource Accent}"/>
+                                <Setter TargetName="track" Property="Background" Value="#FFFFFF"/>
                                 <Setter TargetName="thumb" Property="Background" Value="#161B22"/>
                                 <Setter TargetName="thumb" Property="Margin" Value="23,0,0,0"/>
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <ThicknessAnimation
+                                                Storyboard.TargetName="thumb"
+                                                Storyboard.TargetProperty="Margin"
+                                                From="3,0,0,0" To="23,0,0,0"
+                                                Duration="0:0:0.2" FillBehavior="Stop">
+                                                <ThicknessAnimation.EasingFunction>
+                                                    <CubicEase EasingMode="EaseOut"/>
+                                                </ThicknessAnimation.EasingFunction>
+                                            </ThicknessAnimation>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <ThicknessAnimation
+                                                Storyboard.TargetName="thumb"
+                                                Storyboard.TargetProperty="Margin"
+                                                From="23,0,0,0" To="3,0,0,0"
+                                                Duration="0:0:0.2" FillBehavior="Stop">
+                                                <ThicknessAnimation.EasingFunction>
+                                                    <CubicEase EasingMode="EaseOut"/>
+                                                </ThicknessAnimation.EasingFunction>
+                                            </ThicknessAnimation>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Select All Tab Button -->
+        <Style x:Key="SelectAllBtn" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="16,10"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Border}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#1C2128"/>
+                                <Setter TargetName="bd" Property="BorderBrush" Value="#8B949E"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#252C35"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -2677,7 +3173,10 @@ Add-Type -AssemblyName WindowsBase
                                 <TextBlock Name="CategoryTitle" Text="Sistema" FontSize="22" FontWeight="Bold" Foreground="{StaticResource TextPrimary}"/>
                                 <TextBlock Name="CategoryDesc" Text="Otimizacoes do sistema operacional" FontSize="12" Foreground="{StaticResource TextMuted}" Margin="0,4,0,0"/>
                             </StackPanel>
-                            <Button Grid.Column="1" Style="{StaticResource ApplyAllBtn}" Content="⚡ Run Tweaks" Name="ApplyAllBtn" VerticalAlignment="Center"/>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button Style="{StaticResource SelectAllBtn}" Content="&#x2611; Selecionar Todas" Name="SelectAllBtn" Margin="0,0,10,0"/>
+                                <Button Style="{StaticResource ApplyAllBtn}" Content="&#x26A1; Run Tweaks" Name="ApplyAllBtn"/>
+                            </StackPanel>
                         </Grid>
                     </Border>
 
@@ -2873,6 +3372,7 @@ $OptionsPanel   = $Window.FindName("OptionsPanel")
 $CategoryTitle  = $Window.FindName("CategoryTitle")
 $CategoryDesc   = $Window.FindName("CategoryDesc")
 $ApplyAllBtn    = $Window.FindName("ApplyAllBtn")
+$SelectAllBtn   = $Window.FindName("SelectAllBtn")
 $AdminLabel     = $Window.FindName("AdminLabel")
 $StatusText     = $Window.FindName("StatusText")
 $CounterText    = $Window.FindName("CounterText")
@@ -3044,7 +3544,8 @@ function Update-Counter {
 }
 
 function Build-CreditsUI {
-    $ApplyAllBtn.Visibility = "Collapsed"
+    $ApplyAllBtn.Visibility  = "Collapsed"
+    $SelectAllBtn.Visibility = "Collapsed"
     $OptionsPanel.Children.Clear()
 
     # ── Helper: create a styled card ──────────────────────────────────────
@@ -3113,7 +3614,8 @@ function Build-OptionsUI {
     
     $OptionsPanel.Children.Clear()
     if ($Category -eq "Creditos") { Build-CreditsUI; return }
-    $ApplyAllBtn.Visibility = "Visible"
+    $ApplyAllBtn.Visibility  = "Visible"
+    $SelectAllBtn.Visibility = "Visible"
     $items = $script:Categories[$Category]
     if (-not $items) { return }
 
@@ -3395,6 +3897,39 @@ $ApplyAllBtn.Add_Click({
     $capturedHt = $ht ; $capturedOv = $ProgressOverlay
     $ht.Add_Tick({ $capturedOv.Visibility = "Collapsed"; $capturedHt.Stop() }.GetNewClosure())
     $ht.Start()
+})
+
+# SelectAll button — seleciona ou deseleciona todos os toggles da aba atual
+$SelectAllBtn.Add_Click({
+    $catItems = $script:Categories[$script:CurrentCategory]
+    if (-not $catItems -or $catItems.Count -eq 0) { return }
+
+    # Determina: se algum nao estiver ativo, seleciona todos; caso contrario deseleciona todos
+    $anyOff = $catItems | Where-Object { $script:OptionStates[$_.Key] -ne $true }
+    $shouldSelect = ($anyOff.Count -gt 0)
+
+    foreach ($item in $catItems) {
+        $script:OptionStates[$item.Key] = $shouldSelect
+    }
+
+    # Atualiza label do botao para feedback visual
+    $newLabel = if ($shouldSelect) { [char]0x2612 + " Desmarcar Todas" } else { [char]0x2611 + " Selecionar Todas" }
+    $SelectAllBtn.Content = $newLabel
+
+    # Reverte label apos 1.5s
+    $labelTimer = New-Object System.Windows.Threading.DispatcherTimer
+    $labelTimer.Interval = [TimeSpan]::FromMilliseconds(1500)
+    $capturedLt = $labelTimer ; $capturedSab = $SelectAllBtn
+    $labelTimer.Add_Tick({
+        $capturedLt.Stop()
+        $capturedSab.Content = [char]0x2611 + " Selecionar Todas"
+    }.GetNewClosure())
+    $labelTimer.Start()
+
+    # Rebuild UI para refletir os novos estados
+    Build-OptionsUI $script:CurrentCategory
+    Update-Counter
+    Update-NavBadges
 })
 
 # ── Helpers de animacao ────────────────────────────────────────────────
