@@ -2473,6 +2473,263 @@ function Invoke-OptimizeRawMouseInput {
     return if ($Enable) { "Raw Input do mouse otimizado (HID sem suspend)" } else { "Mouse Input restaurado" }
 }
 
+# =============== OTIMIZACOES 2026 — FLUIDEZ, STORAGE E JOGOS EXTRA ===============
+
+function Invoke-DisableScheduledDefrag {
+    param([bool]$Enable)
+    if (-not $script:IsAdmin) { return "Requer administrador." }
+    if ($Enable) {
+        Run-Hidden "schtasks" "/change /tn `"\Microsoft\Windows\Defrag\ScheduledDefrag`" /disable"
+    } else {
+        Run-Hidden "schtasks" "/change /tn `"\Microsoft\Windows\Defrag\ScheduledDefrag`" /enable"
+    }
+    return if ($Enable) { "Desfragmentacao agendada desativada (SSD nao precisa disso)" } else { "Desfragmentacao agendada restaurada" }
+}
+
+function Invoke-EnableSsdTrim {
+    param([bool]$Enable)
+    if (-not $script:IsAdmin) { return "Requer administrador." }
+    if ($Enable) {
+        Run-Hidden "fsutil" "behavior set DisableDeleteNotify 0"
+    } else {
+        Run-Hidden "fsutil" "behavior set DisableDeleteNotify 1"
+    }
+    return if ($Enable) { "TRIM ativado — SSD mantem performance maxima" } else { "TRIM desativado" }
+}
+
+function Invoke-DisableWindowsInk {
+    param([bool]$Enable)
+    $val = if ($Enable) { 0 } else { 1 }
+    Set-RegistryValue "HKCU:\Software\Microsoft\Windows\CurrentVersion\PenWorkspace" "PenWorkspaceButtonDesiredVisibility" $val
+    if ($script:IsAdmin) {
+        Set-RegistryValue "HKLM:\SOFTWARE\Policies\Microsoft\WindowsInkWorkspace" "AllowWindowsInkWorkspace" $val
+    }
+    return if ($Enable) { "Windows Ink Workspace desativado" } else { "Windows Ink restaurado" }
+}
+
+function Invoke-DisableGameInputSvc {
+    param([bool]$Enable)
+    if (-not $script:IsAdmin) { return "Requer administrador." }
+    foreach ($s in @("GameInput","GameInputSvc")) {
+        $svc = Get-Service -Name $s -ErrorAction SilentlyContinue
+        if ($svc) {
+            try {
+                if ($Enable) {
+                    if ($svc.Status -ne 'Stopped') { $svc.Stop(); $svc.WaitForStatus('Stopped',[TimeSpan]::FromSeconds(4)) }
+                    Set-Service -Name $s -StartupType Disabled -ErrorAction SilentlyContinue
+                } else {
+                    Set-Service -Name $s -StartupType Manual -ErrorAction SilentlyContinue
+                }
+            } catch {}
+        }
+    }
+    return if ($Enable) { "GameInput Service desativado (menos overhead no Win11)" } else { "GameInput Service restaurado" }
+}
+
+function Invoke-DisableCdpSvc {
+    param([bool]$Enable)
+    if (-not $script:IsAdmin) { return "Requer administrador." }
+    foreach ($s in @("CDPSvc","PushToInstall")) {
+        $svc = Get-Service -Name $s -ErrorAction SilentlyContinue
+        if ($svc) {
+            try {
+                if ($Enable) {
+                    if ($svc.Status -ne 'Stopped') { $svc.Stop(); $svc.WaitForStatus('Stopped',[TimeSpan]::FromSeconds(4)) }
+                    Set-Service -Name $s -StartupType Disabled -ErrorAction SilentlyContinue
+                } else {
+                    Set-Service -Name $s -StartupType Manual -ErrorAction SilentlyContinue
+                }
+            } catch {}
+        }
+    }
+    return if ($Enable) { "Connected Devices Platform (CDPSvc) desativado" } else { "CDPSvc restaurado" }
+}
+
+function Invoke-DisableLltd {
+    param([bool]$Enable)
+    if (-not $script:IsAdmin) { return "Requer administrador." }
+    foreach ($s in @("lltdsvc","lltdio")) {
+        $svc = Get-Service -Name $s -ErrorAction SilentlyContinue
+        if ($svc) {
+            try {
+                if ($Enable) {
+                    if ($svc.Status -ne 'Stopped') { $svc.Stop(); $svc.WaitForStatus('Stopped',[TimeSpan]::FromSeconds(4)) }
+                    Set-Service -Name $s -StartupType Disabled -ErrorAction SilentlyContinue
+                } else {
+                    Set-Service -Name $s -StartupType Manual -ErrorAction SilentlyContinue
+                }
+            } catch {}
+        }
+    }
+    return if ($Enable) { "LLTD (Link-Layer Topology Discovery) desativado" } else { "LLTD restaurado" }
+}
+
+function Invoke-DisableLmhostsLookup {
+    param([bool]$Enable)
+    if (-not $script:IsAdmin) { return "Requer administrador." }
+    $val = if ($Enable) { 0 } else { 1 }
+    Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Services\NetBT\Parameters" "EnableLMHOSTS" $val
+    Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Services\NetBIOS\Parameters" "EnableLMHOSTS" $val
+    return if ($Enable) { "LmHosts Lookup desativado (menor latencia de rede)" } else { "LmHosts restaurado" }
+}
+
+function Invoke-DisableWinHttpAutoProxy {
+    param([bool]$Enable)
+    if (-not $script:IsAdmin) { return "Requer administrador." }
+    $svc = Get-Service -Name "WinHttpAutoProxySvc" -ErrorAction SilentlyContinue
+    if ($svc) {
+        try {
+            if ($Enable) {
+                if ($svc.Status -ne 'Stopped') { $svc.Stop(); $svc.WaitForStatus('Stopped',[TimeSpan]::FromSeconds(4)) }
+                Set-Service -Name "WinHttpAutoProxySvc" -StartupType Disabled -ErrorAction SilentlyContinue
+            } else {
+                Set-Service -Name "WinHttpAutoProxySvc" -StartupType Manual -ErrorAction SilentlyContinue
+            }
+        } catch {}
+    }
+    return if ($Enable) { "WinHTTP AutoProxy desativado" } else { "WinHTTP AutoProxy restaurado" }
+}
+
+function Invoke-DisableSensorsSvc {
+    param([bool]$Enable)
+    if (-not $script:IsAdmin) { return "Requer administrador." }
+    foreach ($s in @("SensrSvc","SensorService","SensorDataService")) {
+        $svc = Get-Service -Name $s -ErrorAction SilentlyContinue
+        if ($svc) {
+            try {
+                if ($Enable) {
+                    if ($svc.Status -ne 'Stopped') { $svc.Stop(); $svc.WaitForStatus('Stopped',[TimeSpan]::FromSeconds(4)) }
+                    Set-Service -Name $s -StartupType Disabled -ErrorAction SilentlyContinue
+                } else {
+                    Set-Service -Name $s -StartupType Manual -ErrorAction SilentlyContinue
+                }
+            } catch {}
+        }
+    }
+    return if ($Enable) { "Servicos de sensores desativados" } else { "Servicos de sensores restaurados" }
+}
+
+function Invoke-OptimizeStorageController {
+    param([bool]$Enable)
+    if (-not $script:IsAdmin) { return "Requer administrador." }
+    if ($Enable) {
+        Set-PopupStep "Desativando varredura proativa de disco..."
+        Run-Hidden "schtasks" "/change /tn `"\Microsoft\Windows\Chkdsk\ProactiveScan`" /disable"
+        Set-PopupStep "Desativando diagnostico SMART agendado..."
+        Run-Hidden "schtasks" "/change /tn `"\Microsoft\Windows\DiskDiagnostic\Microsoft-Windows-DiskDiagnosticDataCollector`" /disable"
+        Set-PopupStep "Ajustando NTFS otimizacoes de I/O..."
+        Run-Hidden "fsutil" "behavior set disablelastaccess 1"
+        Run-Hidden "fsutil" "behavior set disable8dot3 1"
+        Set-PopupStep "Ativando TRIM para SSD..."
+        Run-Hidden "fsutil" "behavior set DisableDeleteNotify 0"
+        # Habilitar write caching via StorAHCI
+        Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Services\storahci\Parameters\Device" "EnableIdleDetection" 0
+    } else {
+        Run-Hidden "schtasks" "/change /tn `"\Microsoft\Windows\Chkdsk\ProactiveScan`" /enable"
+        Run-Hidden "schtasks" "/change /tn `"\Microsoft\Windows\DiskDiagnostic\Microsoft-Windows-DiskDiagnosticDataCollector`" /enable"
+        Run-Hidden "fsutil" "behavior set disablelastaccess 0"
+        Run-Hidden "fsutil" "behavior set disable8dot3 0"
+        Remove-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\storahci\Parameters\Device" -Name "EnableIdleDetection" -ErrorAction SilentlyContinue
+    }
+    return if ($Enable) { "Storage Pro: TRIM + NTFS + AHCI + sem scan agendado" } else { "Controlador de armazenamento restaurado" }
+}
+
+function Invoke-DisableVssSvc {
+    param([bool]$Enable)
+    if (-not $script:IsAdmin) { return "Requer administrador." }
+    $svc = Get-Service -Name "VSS" -ErrorAction SilentlyContinue
+    if ($svc) {
+        try {
+            if ($Enable) {
+                if ($svc.Status -ne 'Stopped') { $svc.Stop(); $svc.WaitForStatus('Stopped',[TimeSpan]::FromSeconds(5)) }
+                Set-Service -Name "VSS" -StartupType Manual -ErrorAction SilentlyContinue
+            }
+        } catch {}
+    }
+    if ($Enable) {
+        Set-RegistryValue "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SPP" "Disabled" 1
+    } else {
+        Remove-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SPP" -Name "Disabled" -ErrorAction SilentlyContinue
+    }
+    return if ($Enable) { "Volume Shadow Copy (VSS) desativado — libera I/O do disco" } else { "VSS restaurado" }
+}
+
+function Invoke-WarzoneBoost {
+    param([bool]$Enable)
+    Invoke-DisableGameDvr $Enable
+    Invoke-DisableXboxGameBar $Enable
+    Invoke-FullscreenOptimization $Enable
+    Invoke-DisableNetworkThrottling $Enable
+    Invoke-OptimizeGamesSystemProfile $Enable
+    Invoke-UltimatePerformance $Enable
+    if ($Enable -and $script:IsAdmin) {
+        Run-Hidden "reg" 'add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\ModernWarfare.exe\PerfOptions" /v CpuPriorityClass /t REG_DWORD /d 3 /f'
+        Run-Hidden "reg" 'add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\cod.exe\PerfOptions" /v CpuPriorityClass /t REG_DWORD /d 3 /f'
+        Run-Hidden "reg" 'add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\BlackOps6.exe\PerfOptions" /v CpuPriorityClass /t REG_DWORD /d 3 /f'
+    } elseif (-not $Enable -and $script:IsAdmin) {
+        Run-Hidden "reg" 'delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\ModernWarfare.exe\PerfOptions" /f' 2>$null
+        Run-Hidden "reg" 'delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\cod.exe\PerfOptions" /f' 2>$null
+        Run-Hidden "reg" 'delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\BlackOps6.exe\PerfOptions" /f' 2>$null
+    }
+    return if ($Enable) { "Warzone / COD Boost aplicado" } else { "Warzone / COD Boost revertido" }
+}
+
+function Invoke-Dota2Boost {
+    param([bool]$Enable)
+    Invoke-DisableGameDvr $Enable
+    Invoke-DisableXboxGameBar $Enable
+    Invoke-FullscreenOptimization $Enable
+    Invoke-DisableNetworkThrottling $Enable
+    Invoke-DisableNagles $Enable
+    Invoke-OptimizeGamesSystemProfile $Enable
+    if ($Enable -and $script:IsAdmin) {
+        Run-Hidden "reg" 'add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\dota2.exe\PerfOptions" /v CpuPriorityClass /t REG_DWORD /d 3 /f'
+    } elseif (-not $Enable -and $script:IsAdmin) {
+        Run-Hidden "reg" 'delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\dota2.exe\PerfOptions" /f' 2>$null
+    }
+    return if ($Enable) { "Dota 2 Boost aplicado" } else { "Dota 2 Boost revertido" }
+}
+
+function Invoke-EaFcBoost {
+    param([bool]$Enable)
+    Invoke-DisableGameDvr $Enable
+    Invoke-DisableXboxGameBar $Enable
+    Invoke-UltimatePerformance $Enable
+    Invoke-DisableNetworkThrottling $Enable
+    Invoke-DisableNagles $Enable
+    if ($Enable -and $script:IsAdmin) {
+        Run-Hidden "reg" 'add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\EAFC25.exe\PerfOptions" /v CpuPriorityClass /t REG_DWORD /d 3 /f'
+        Run-Hidden "reg" 'add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\FIFA25.exe\PerfOptions" /v CpuPriorityClass /t REG_DWORD /d 3 /f'
+        Run-Hidden "reg" 'add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\FIFAGame.exe\PerfOptions" /v CpuPriorityClass /t REG_DWORD /d 3 /f'
+    } elseif (-not $Enable -and $script:IsAdmin) {
+        Run-Hidden "reg" 'delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\EAFC25.exe\PerfOptions" /f' 2>$null
+        Run-Hidden "reg" 'delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\FIFA25.exe\PerfOptions" /f' 2>$null
+        Run-Hidden "reg" 'delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\FIFAGame.exe\PerfOptions" /f' 2>$null
+    }
+    return if ($Enable) { "EA FC / FIFA Boost aplicado" } else { "EA FC / FIFA Boost revertido" }
+}
+
+function Invoke-SmoothFramePack {
+    param([bool]$Enable)
+    Set-PopupStep "Desativando Dynamic Tick..."
+    Invoke-KernelDynamicTick $Enable
+    Set-PopupStep "Desativando HPET..."
+    Invoke-DisableHpet $Enable
+    Set-PopupStep "TSCSyncPolicy Enhanced..."
+    Invoke-KernelTscSyncPolicy $Enable
+    Set-PopupStep "Timer Resolution de alta precisao..."
+    Invoke-OptimizeTimerResolution $Enable
+    Set-PopupStep "I/O Priority alta..."
+    Invoke-OptimizeIoPriority $Enable
+    Set-PopupStep "PCIe ASPM off..."
+    Invoke-OptimizePcieAspm $Enable
+    Set-PopupStep "Audio Latency otimizado..."
+    Invoke-OptimizeAudioLatency $Enable
+    Set-PopupStep "Win32 Priority foreground..."
+    Invoke-KernelWin32PrioritySeparation $Enable
+    return if ($Enable) { "Smooth Frame Pack aplicado (8 tweaks de fluidez e frame pacing)" } else { "Smooth Frame Pack revertido" }
+}
+
 # ==================== MAPEAMENTO OTIMIZACOES ====================
 
 $script:OptimizationMap = @{
@@ -2659,6 +2916,22 @@ $script:OptimizationMap = @{
     "set_d3d_gpu_preference"        = { param($e) Invoke-SetD3dGpuPreference $e }
     "enable_large_system_cache"     = { param($e) Invoke-EnableLargeSystemCache $e }
     "optimize_raw_mouse_input"      = { param($e) Invoke-OptimizeRawMouseInput $e }
+    # 2026 — Fluidez, Storage e Jogos Extra
+    "disable_scheduled_defrag"      = { param($e) Invoke-DisableScheduledDefrag $e }
+    "enable_ssd_trim"               = { param($e) Invoke-EnableSsdTrim $e }
+    "disable_windows_ink"           = { param($e) Invoke-DisableWindowsInk $e }
+    "disable_game_input_svc"        = { param($e) Invoke-DisableGameInputSvc $e }
+    "disable_cdp_svc"               = { param($e) Invoke-DisableCdpSvc $e }
+    "disable_lltd"                  = { param($e) Invoke-DisableLltd $e }
+    "disable_lmhosts"               = { param($e) Invoke-DisableLmhostsLookup $e }
+    "disable_winhttp_auto_proxy"    = { param($e) Invoke-DisableWinHttpAutoProxy $e }
+    "disable_sensors_svc"           = { param($e) Invoke-DisableSensorsSvc $e }
+    "optimize_storage_controller"   = { param($e) Invoke-OptimizeStorageController $e }
+    "disable_vss_svc"               = { param($e) Invoke-DisableVssSvc $e }
+    "warzone_boost"                 = { param($e) Invoke-WarzoneBoost $e }
+    "dota2_boost"                   = { param($e) Invoke-Dota2Boost $e }
+    "ea_fc_boost"                   = { param($e) Invoke-EaFcBoost $e }
+    "smooth_frame_pack"             = { param($e) Invoke-SmoothFramePack $e }
 }
 
 # ==================== DEFINICAO DAS CATEGORIAS ====================
@@ -2709,6 +2982,10 @@ $script:Categories = [ordered]@{
         @{ Key="disable_tablet_input_svc";       Title="Desativar Servicos Tablet PC";       Desc="Para TabletInputService e PenService" }
         @{ Key="disable_store_auto_update";      Title="Desativar Auto-Update da Store";     Desc="Impede atualizacoes automaticas da Windows Store" }
         @{ Key="disable_startup_items";          Title="Otimizar Inicializacao";             Desc="Remove itens pesados da inicializacao + atraso zerado" }
+        @{ Key="disable_windows_ink";            Title="Desativar Windows Ink";               Desc="Remove Windows Ink Workspace (overhead em PCs sem caneta)" }
+        @{ Key="disable_game_input_svc";         Title="Desativar GameInput Service";         Desc="Para servico GameInput do Win11 (reduz overhead)" }
+        @{ Key="disable_cdp_svc";                Title="Desativar CDPSvc";                    Desc="Para Connected Devices Platform Service" }
+        @{ Key="disable_sensors_svc";            Title="Desativar Servicos de Sensores";      Desc="Para SensrSvc e SensorService (desnecessario em PCs)" }
     )
     "Games" = @(
         @{ Key="game_mode";                     Title="Game Mode";                          Desc="Otimiza sistema para jogos" }
@@ -2740,6 +3017,7 @@ $script:Categories = [ordered]@{
         @{ Key="disable_nvidia_geforce_overlay"; Title="Desativar Overlay GeForce Exp.";    Desc="Desativa overlay e container NVIDIA" }
         @{ Key="disable_focus_steal";           Title="Desativar Roubo de Foco";            Desc="ForegroundLockTimeout zero (sem perda de foco no jogo)" }
         @{ Key="boost_game_cpu_priority";       Title="CPU Alta Prioridade em Jogos";       Desc="Aplica CpuPriorityClass=High p/ jogos populares" }
+        @{ Key="smooth_frame_pack";              Title="Smooth Frame Pack";                   Desc="8 tweaks de fluidez: HPET, TSC, Timer, PCIe, Tick" }
     )
     "GameBoost" = @(
         @{ Key="valorant_boost";                Title="Valorant Boost";                     Desc="Prioriza VALORANT e reduz input lag" }
@@ -2752,6 +3030,9 @@ $script:Categories = [ordered]@{
         @{ Key="lol_boost";                     Title="League of Legends Boost";            Desc="Prioridade + Nagle desativado" }
         @{ Key="pubg_boost";                    Title="PUBG Battlegrounds Boost";           Desc="Otimizacoes completas para PUBG" }
         @{ Key="overwatch2_boost";              Title="Overwatch 2 Boost";                  Desc="Prioridade + rede otimizada para OW2" }
+        @{ Key="warzone_boost";                  Title="Warzone / COD Boost";                 Desc="Prioridade alta + rede e CPU otimizados" }
+        @{ Key="dota2_boost";                    Title="Dota 2 Boost";                        Desc="Prioridade CPU + Nagle off + DVR desativado" }
+        @{ Key="ea_fc_boost";                    Title="EA FC / FIFA Boost";                  Desc="Ultimate Perf + Nagle off + prioridade CPU" }
     )
     "Booster" = @(
         @{ Key="cpu_boost";                     Title="CPU Boost";                          Desc="Ajusta prioridade e afinidade da CPU" }
@@ -2779,6 +3060,10 @@ $script:Categories = [ordered]@{
         @{ Key="optimize_pagefile";             Title="Otimizar PageFile";                  Desc="Define tamanho fixo do pagefile baseado na RAM" }
         @{ Key="disable_defender_cloud";        Title="Desativar Cloud Protection";         Desc="Remove protecao na nuvem do Windows Defender" }
         @{ Key="disable_superfetch_full";       Title="Desativar SysMain Completo";         Desc="Para SysMain e prefetch por completo" }
+        @{ Key="disable_scheduled_defrag";       Title="Desativar Defrag Agendado";           Desc="SSD nao precisa de desfragmentacao automatica" }
+        @{ Key="enable_ssd_trim";                Title="Ativar TRIM para SSD";                Desc="Garante TRIM ativo para performance maxima" }
+        @{ Key="optimize_storage_controller";    Title="Storage Controller Pro";              Desc="TRIM + NTFS + AHCI + sem scan agendado de disco" }
+        @{ Key="disable_vss_svc";                Title="Desativar Shadow Copy (VSS)";         Desc="Libera I/O do disco desativando Volume Shadow Copy" }
     )
     "Internet" = @(
         @{ Key="dns_flush";                     Title="Limpar Cache DNS";                    Desc="Flush do cache DNS" }
@@ -2801,6 +3086,9 @@ $script:Categories = [ordered]@{
         @{ Key="disable_6to4_isatap";           Title="Desativar 6to4 e ISATAP";             Desc="Remove tuneis de transicao IPv4/IPv6" }
         @{ Key="disable_ecn_tcp";               Title="Desativar ECN";                       Desc="Remove Explicit Congestion Notification" }
         @{ Key="set_optimal_ttl";               Title="TTL Otimizado (64)";                  Desc="Define TTL 64 — resposta mais rapida" }
+        @{ Key="disable_lmhosts";                Title="Desativar LmHosts Lookup";            Desc="Remove resolucao NetBIOS via LmHosts (menor latencia)" }
+        @{ Key="disable_lltd";                   Title="Desativar LLTD (Topologia)";          Desc="Remove descoberta de rede LLTD" }
+        @{ Key="disable_winhttp_auto_proxy";     Title="Desativar WinHTTP AutoProxy";         Desc="Remove servico de auto-deteccao de proxy" }
     )
     "Graphics" = @(
         @{ Key="nvidia_opt";                    Title="NVIDIA Optimizer";                   Desc="Otimiza driver NVIDIA" }
