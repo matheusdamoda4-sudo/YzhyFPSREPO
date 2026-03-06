@@ -645,15 +645,54 @@ function Invoke-DisableDefenderRealtime {
 
 function Invoke-ValorantBoost {
     param([bool]$Enable)
+    Set-PopupStep "Desativando DVR + GameBar..."
     Invoke-DisableGameDvr $Enable
     Invoke-DisableXboxGameBar $Enable
+    Set-PopupStep "Fullscreen Optimization off..."
     Invoke-FullscreenOptimization $Enable
+    Set-PopupStep "Network Throttling off..."
     Invoke-DisableNetworkThrottling $Enable
+    Set-PopupStep "MMCSS Gaming Profile..."
     Invoke-OptimizeGamesSystemProfile $Enable
+    Invoke-OptimizeMmcss $Enable
+    Set-PopupStep "Core Parking off..."
+    Invoke-DisableCpuParking $Enable
+    Set-PopupStep "EPP off (CPU boost constante)..."
+    Invoke-DisableEpp $Enable
+    Set-PopupStep "GPU High Performance..."
+    Invoke-ForceGpuHighPerf $Enable
+    Set-PopupStep "Win32 Priority: foreground..."
+    Invoke-KernelWin32PrioritySeparation $Enable
+    Set-PopupStep "Desativando servicos diagnostico..."
+    Invoke-DisableDiagnosticPolicySvc $Enable
+    Set-PopupStep "Pausando Windows Update..."
+    Invoke-DisableWindowsUpdateDuringGame $Enable
+    Set-PopupStep "Nagle off (menor ping)..."
+    Invoke-DisableNagles $Enable
+    Set-PopupStep "Desativando Memory Compression..."
+    Invoke-DisableMemoryCompression $Enable
+    Set-PopupStep "Ultimate Performance plan..."
+    Invoke-UltimatePerformance $Enable
     if ($Enable -and $script:IsAdmin) {
+        # Prioridade CPU alta para processos do Valorant
         Run-Hidden "reg" 'add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\VALORANT-Win64-Shipping.exe\PerfOptions" /v CpuPriorityClass /t REG_DWORD /d 3 /f'
+        Run-Hidden "reg" 'add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\VALORANT.exe\PerfOptions" /v CpuPriorityClass /t REG_DWORD /d 3 /f'
+        Run-Hidden "reg" 'add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\vgc.exe\PerfOptions" /v CpuPriorityClass /t REG_DWORD /d 3 /f'
+        # QoS para Valorant (prioridade de pacotes de rede)
+        Run-Hidden "reg" 'add "HKCU\Software\Policies\Microsoft\Windows\QoS\VALORANT" /v Application /t REG_SZ /d "VALORANT-Win64-Shipping.exe" /f'
+        Run-Hidden "reg" 'add "HKCU\Software\Policies\Microsoft\Windows\QoS\VALORANT" /v Version /t REG_SZ /d "1.0" /f'
+        Run-Hidden "reg" 'add "HKCU\Software\Policies\Microsoft\Windows\QoS\VALORANT" /v Protocol /t REG_SZ /d "*" /f'
+        Run-Hidden "reg" 'add "HKCU\Software\Policies\Microsoft\Windows\QoS\VALORANT" /v DSCPValue /t REG_SZ /d "46" /f'
+        Run-Hidden "reg" 'add "HKCU\Software\Policies\Microsoft\Windows\QoS\VALORANT" /v LocalPort /t REG_SZ /d "*" /f'
+        Run-Hidden "reg" 'add "HKCU\Software\Policies\Microsoft\Windows\QoS\VALORANT" /v RemotePort /t REG_SZ /d "*" /f'
+        Run-Hidden "reg" 'add "HKCU\Software\Policies\Microsoft\Windows\QoS\VALORANT" /v ThrottleRate /t REG_SZ /d "-1" /f'
+    } elseif (-not $Enable -and $script:IsAdmin) {
+        Run-Hidden "reg" 'delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\VALORANT-Win64-Shipping.exe\PerfOptions" /f' 2>$null
+        Run-Hidden "reg" 'delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\VALORANT.exe\PerfOptions" /f' 2>$null
+        Run-Hidden "reg" 'delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\vgc.exe\PerfOptions" /f' 2>$null
+        Run-Hidden "reg" 'delete "HKCU\Software\Policies\Microsoft\Windows\QoS\VALORANT" /f' 2>$null
     }
-    return if ($Enable) { "Valorant Boost COMPLETO aplicado" } else { "Valorant Boost revertido" }
+    return if ($Enable) { "Valorant Boost MAXIMO aplicado (14 otimizacoes)" } else { "Valorant Boost revertido" }
 }
 
 function Invoke-FortniteBoost {
@@ -672,12 +711,100 @@ function Invoke-FortniteBoost {
 
 function Invoke-FiveMBoost {
     param([bool]$Enable)
+    Set-PopupStep "Ultra Gaming Mode..."
     Invoke-UltraGamingMode $Enable
+    Set-PopupStep "Core Parking off..."
+    Invoke-DisableCpuParking $Enable
+    Set-PopupStep "EPP off (CPU boost)..."
+    Invoke-DisableEpp $Enable
+    Set-PopupStep "GPU High Performance..."
+    Invoke-ForceGpuHighPerf $Enable
+    Set-PopupStep "Win32 Priority: foreground..."
+    Invoke-KernelWin32PrioritySeparation $Enable
+    Set-PopupStep "MMCSS otimizado..."
+    Invoke-OptimizeMmcss $Enable
+    Set-PopupStep "I/O Priority alta..."
+    Invoke-OptimizeIoPriority $Enable
+    Set-PopupStep "Desativando Memory Compression..."
+    Invoke-DisableMemoryCompression $Enable
+    Set-PopupStep "Memory Manager Pro..."
+    Invoke-MemoryManagerPro $Enable
+    Set-PopupStep "PageFile otimizado..."
+    Invoke-OptimizePagefile $Enable
+    Set-PopupStep "Desativando servicos diagnostico..."
+    Invoke-DisableDiagnosticPolicySvc $Enable
+    Set-PopupStep "Pausando Windows Update..."
+    Invoke-DisableWindowsUpdateDuringGame $Enable
+    Set-PopupStep "Nagle off..."
+    Invoke-DisableNagles $Enable
+    Set-PopupStep "Tarefas agendadas off..."
+    Invoke-DisableGamingScheduledTasks $Enable
     if ($Enable -and $script:IsAdmin) {
         Run-Hidden "reg" 'add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\GTA5.exe\PerfOptions" /v CpuPriorityClass /t REG_DWORD /d 3 /f'
         Run-Hidden "reg" 'add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\FiveM_GTAProcess.exe\PerfOptions" /v CpuPriorityClass /t REG_DWORD /d 3 /f'
+        Run-Hidden "reg" 'add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\FiveM.exe\PerfOptions" /v CpuPriorityClass /t REG_DWORD /d 3 /f'
+        Run-Hidden "reg" 'add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\GTAVLauncher.exe\PerfOptions" /v CpuPriorityClass /t REG_DWORD /d 3 /f'
+    } elseif (-not $Enable -and $script:IsAdmin) {
+        Run-Hidden "reg" 'delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\GTA5.exe\PerfOptions" /f' 2>$null
+        Run-Hidden "reg" 'delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\FiveM_GTAProcess.exe\PerfOptions" /f' 2>$null
+        Run-Hidden "reg" 'delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\FiveM.exe\PerfOptions" /f' 2>$null
+        Run-Hidden "reg" 'delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\GTAVLauncher.exe\PerfOptions" /f' 2>$null
     }
-    return if ($Enable) { "FiveM/GTA Boost COMPLETO aplicado" } else { "FiveM/GTA Boost revertido" }
+    return if ($Enable) { "FiveM/GTA Boost MAXIMO aplicado (15 otimizacoes)" } else { "FiveM/GTA Boost revertido" }
+}
+
+function Invoke-FreefireBoost {
+    param([bool]$Enable)
+    Set-PopupStep "Game Mode + DVR off..."
+    Invoke-GameMode $Enable
+    Invoke-DisableGameDvr $Enable
+    Invoke-DisableXboxGameBar $Enable
+    Set-PopupStep "Ultimate Performance..."
+    Invoke-UltimatePerformance $Enable
+    Set-PopupStep "Core Parking off..."
+    Invoke-DisableCpuParking $Enable
+    Set-PopupStep "EPP off (CPU boost)..."
+    Invoke-DisableEpp $Enable
+    Set-PopupStep "GPU High Performance..."
+    Invoke-ForceGpuHighPerf $Enable
+    Set-PopupStep "MMCSS Gaming Profile..."
+    Invoke-OptimizeGamesSystemProfile $Enable
+    Invoke-OptimizeMmcss $Enable
+    Set-PopupStep "Network Throttling off..."
+    Invoke-DisableNetworkThrottling $Enable
+    Set-PopupStep "Nagle off (menor ping)..."
+    Invoke-DisableNagles $Enable
+    Set-PopupStep "Desativando apps em segundo plano..."
+    Invoke-DisableBackgroundAppsAll $Enable
+    Set-PopupStep "Desativando Memory Compression..."
+    Invoke-DisableMemoryCompression $Enable
+    Set-PopupStep "Desativando servicos diagnostico..."
+    Invoke-DisableDiagnosticPolicySvc $Enable
+    Set-PopupStep "Win32 Priority: foreground..."
+    Invoke-KernelWin32PrioritySeparation $Enable
+    Set-PopupStep "Pausando Windows Update..."
+    Invoke-DisableWindowsUpdateDuringGame $Enable
+    if ($Enable -and $script:IsAdmin) {
+        # Free Fire PC (versao nativa Windows)
+        Run-Hidden "reg" 'add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\FFGame.exe\PerfOptions" /v CpuPriorityClass /t REG_DWORD /d 3 /f'
+        Run-Hidden "reg" 'add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\FreeFireNA.exe\PerfOptions" /v CpuPriorityClass /t REG_DWORD /d 3 /f'
+        Run-Hidden "reg" 'add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\Garena.exe\PerfOptions" /v CpuPriorityClass /t REG_DWORD /d 3 /f'
+        # Emuladores comuns usados para Free Fire
+        Run-Hidden "reg" 'add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\LdVBoxHeadless.exe\PerfOptions" /v CpuPriorityClass /t REG_DWORD /d 3 /f'
+        Run-Hidden "reg" 'add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\HD-Player.exe\PerfOptions" /v CpuPriorityClass /t REG_DWORD /d 3 /f'
+        Run-Hidden "reg" 'add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\MEmuHeadless.exe\PerfOptions" /v CpuPriorityClass /t REG_DWORD /d 3 /f'
+        # Desativar fullscreen opt para emuladores
+        Run-Hidden "reg" 'add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\LdVBoxHeadless.exe" /v DisableHeapCoalesce /t REG_DWORD /d 1 /f'
+        Run-Hidden "reg" 'add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\HD-Player.exe" /v DisableHeapCoalesce /t REG_DWORD /d 1 /f'
+    } elseif (-not $Enable -and $script:IsAdmin) {
+        Run-Hidden "reg" 'delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\FFGame.exe\PerfOptions" /f' 2>$null
+        Run-Hidden "reg" 'delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\FreeFireNA.exe\PerfOptions" /f' 2>$null
+        Run-Hidden "reg" 'delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\Garena.exe\PerfOptions" /f' 2>$null
+        Run-Hidden "reg" 'delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\LdVBoxHeadless.exe\PerfOptions" /f' 2>$null
+        Run-Hidden "reg" 'delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\HD-Player.exe\PerfOptions" /f' 2>$null
+        Run-Hidden "reg" 'delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\MEmuHeadless.exe\PerfOptions" /f' 2>$null
+    }
+    return if ($Enable) { "Free Fire Boost MAXIMO aplicado (15 otimizacoes + emuladores)" } else { "Free Fire Boost revertido" }
 }
 
 function Invoke-MinecraftBoost {
@@ -2785,6 +2912,7 @@ $script:OptimizationMap = @{
     "valorant_boost"                = { param($e) Invoke-ValorantBoost $e }
     "fortnite_boost"                = { param($e) Invoke-FortniteBoost $e }
     "fivem_boost"                   = { param($e) Invoke-FiveMBoost $e }
+    "freefire_boost"                = { param($e) Invoke-FreefireBoost $e }
     "minecraft_boost"               = { param($e) Invoke-MinecraftBoost $e }
     "roblox_boost"                  = { param($e) Invoke-RobloxBoost $e }
     # Booster
@@ -3020,9 +3148,10 @@ $script:Categories = [ordered]@{
         @{ Key="smooth_frame_pack";              Title="Smooth Frame Pack";                   Desc="8 tweaks de fluidez: HPET, TSC, Timer, PCIe, Tick" }
     )
     "GameBoost" = @(
-        @{ Key="valorant_boost";                Title="Valorant Boost";                     Desc="Prioriza VALORANT e reduz input lag" }
+        @{ Key="valorant_boost";                Title="Valorant Boost";                     Desc="14 otimizacoes: Core Parking, EPP, GPU, CPU, rede, QoS" }
         @{ Key="fortnite_boost";                Title="Fortnite Boost";                     Desc="Prioridade alta + throttling off" }
-        @{ Key="fivem_boost";                   Title="FiveM / GTA V Boost";                Desc="Foca em FiveM + GTA5 com prioridade" }
+        @{ Key="fivem_boost";                   Title="FiveM / GTA V Boost";                Desc="15 otimizacoes: Core Parking, EPP, mem, CPU, GPU, rede" }
+        @{ Key="freefire_boost";                 Title="Free Fire Boost";                     Desc="15 otimizacoes: GPU, CPU, rede, emuladores (LD/BS/MEmu)" }
         @{ Key="minecraft_boost";               Title="Minecraft Boost";                    Desc="Prioridade e limpeza de heap" }
         @{ Key="roblox_boost";                  Title="Roblox Boost";                       Desc="Prioriza RobloxPlayerBeta" }
         @{ Key="cs2_boost";                     Title="CS2 / CS:GO Boost";                  Desc="Prioridade alta para Counter-Strike" }
